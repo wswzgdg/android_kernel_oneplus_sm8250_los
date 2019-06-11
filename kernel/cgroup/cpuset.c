@@ -2034,6 +2034,11 @@ static ssize_t cpuset_write_resmask(struct kernfs_open_file *of,
 	struct cpuset *trialcs;
 	int retval = -ENODEV;
 
+#ifndef CONFIG_CPUSETS_ASSIST
+	/* Don't call strstrip here because buf is read-only */
+	buf = strstrip(buf);
+#endif
+
 	/*
 	 * CPU or memory hotunplug may leave @cs w/o any execution
 	 * resources, in which case the hotplug code asynchronously updates
