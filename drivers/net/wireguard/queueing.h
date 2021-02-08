@@ -23,7 +23,7 @@ struct sk_buff;
 /* queueing.c APIs: */
 int wg_packet_queue_init(struct crypt_queue *queue, work_func_t function,
 			 unsigned int len);
-void wg_packet_queue_free(struct crypt_queue *queue, bool purge);
+void wg_packet_queue_free(struct crypt_queue *queue);
 struct multicore_worker __percpu *
 wg_packet_percpu_multicore_worker_alloc(work_func_t function, void *ptr);
 
@@ -158,7 +158,7 @@ static inline void wg_prev_queue_drop_peeked(struct prev_queue *queue)
 
 static inline int wg_queue_enqueue_per_device_and_peer(
 	struct crypt_queue *device_queue, struct prev_queue *peer_queue,
-	struct sk_buff *skb, struct workqueue_struct *wq)
+	struct sk_buff *skb, struct workqueue_struct *wq, int *next_cpu)
 {
 	int cpu;
 
