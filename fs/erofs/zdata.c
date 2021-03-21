@@ -433,11 +433,27 @@ static void preload_compressed_pages(struct z_erofs_collector *clt,
 			set_page_private(newpage, Z_EROFS_PREALLOCATED_PAGE);
 			t = tag_compressed_page_justfound(newpage);
 		} else {    /* DONTALLOC */
+/* I/O is needed, no possible to decompress directly */
 dontalloc:
 			if (standalone)
 				clt->compressedpages = pages;
 			standalone = false;
-			continue;
+			switch (type) {
+			case DELAYEDALLOC:
+				t = tagptr_init(compressed_page_t,
+						PAGE_UNALLOCATED);
+				break;
+			case TRYALLOC:
+				newpage = erofs_allocpage(pagepool, gfp);
+				if (!newpage)
+					continue;
+				set_page_private(newpage,
+						 Z_EROFS_PREALLOCATED_PAGE);
+				t = tag_compressed_page_justfound(newpage);
+				break;
+			default:        /* DONTALLOC */
+				continue;
+			}
 		}
 
 		if (!cmpxchg_relaxed(pages, NULL, tagptr_cast_ptr(t)))
@@ -448,7 +464,15 @@ dontalloc:
 		} else if (newpage) {
 			set_page_private(newpage, 0);
 			list_add(&newpage->lru, pagepool);
-		}	clt->mode = COLLECT_PRIMARY_FOLLOWED_NOINPLACE;
+		}
+	}
+
+	/*
+	 * don't do inplace I/O if all compressed pages are available in
+	 * managed cache since it can be moved to the bypass queue instead.
+	 */
+	if (standalone)
+		clt->mode = COLLECT_PRIMARY_FOLLOWED_NOINPLACE;
 }
 
 /* called by erofs_shrinker to get rid of all compressed_pages */
