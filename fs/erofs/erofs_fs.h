@@ -219,6 +219,12 @@ struct z_erofs_lz4_cfgs {
 	u8 reserved[10];
 } __packed;
 
+/* 14 bytes (+ length field = 16 bytes) */
+struct z_erofs_lz4_cfgs {
+	__le16 max_distance;
+	u8 reserved[12];
+} __packed;
+
 /*
  * bit 0 : COMPACTED_2B indexes (0 - off; 1 - on)
  *  e.g. for 4k logical cluster size,      4B        if compacted 2B is off;
