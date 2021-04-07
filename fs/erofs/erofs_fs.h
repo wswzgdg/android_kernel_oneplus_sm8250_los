@@ -217,7 +217,6 @@ enum {
 	Z_EROFS_COMPRESSION_MAX
 };
 #define Z_EROFS_ALL_COMPR_ALGS		(1 << (Z_EROFS_COMPRESSION_MAX - 1))
-<<<<<<< HEAD
 
 /* 14 bytes (+ length field = 16 bytes) */
 struct z_erofs_lz4_cfgs {
@@ -225,13 +224,12 @@ struct z_erofs_lz4_cfgs {
 	__le16 max_pclusterblks;
 	u8 reserved[10];
 } __packed;
-=======
->>>>>>> f135acf955efc (erofs: add on-disk compression configurations)
 
 /* 14 bytes (+ length field = 16 bytes) */
 struct z_erofs_lz4_cfgs {
 	__le16 max_distance;
-	u8 reserved[12];
+	__le16 max_pclusterblks;
+	u8 reserved[10];
 } __packed;
 
 /*
@@ -241,9 +239,9 @@ struct z_erofs_lz4_cfgs {
 * bit 1 : HEAD1 big pcluster (0 - off; 1 - on)
  * bit 2 : HEAD2 big pcluster (0 - off; 1 - on)
  */
-#define Z_EROFS_ADVISE_COMPACTED_2B_BIT		0
-#define Z_EROFS_ADVISE_BIG_PCLUSTER_1_BIT	1
-#define Z_EROFS_ADVISE_BIG_PCLUSTER_2_BIT	2
+#define Z_EROFS_ADVISE_COMPACTED_2B	0x0001
+#define Z_EROFS_ADVISE_BIG_PCLUSTER_1	0x0002
+#define Z_EROFS_ADVISE_BIG_PCLUSTER_2	0x0004
 
 #define Z_EROFS_ADVISE_COMPACTED_2B	(1 << Z_EROFS_ADVISE_COMPACTED_2B_BIT)
 #define Z_EROFS_ADVISE_BIG_PCLUSTER_1	(1 << Z_EROFS_ADVISE_BIG_PCLUSTER_1_BIT)
