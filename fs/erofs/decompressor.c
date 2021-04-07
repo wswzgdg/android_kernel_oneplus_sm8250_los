@@ -31,6 +31,7 @@ int z_erofs_load_lz4_config(struct super_block *sb,
 			    struct erofs_super_block *dsb,
 			    struct z_erofs_lz4_cfgs *lz4, int size)
 {
+	struct erofs_sb_info *sbi = EROFS_SB(sb);
 	u16 distance;
 
 	if (lz4) {
@@ -39,8 +40,21 @@ int z_erofs_load_lz4_config(struct super_block *sb,
 			return -EINVAL;
 		}
 		distance = le16_to_cpu(lz4->max_distance);
+
+		sbi->lz4.max_pclusterblks = le16_to_cpu(lz4->max_pclusterblks);
+		if (!sbi->lz4.max_pclusterblks) {
+			sbi->lz4.max_pclusterblks = 1;	/* reserved case */
+		} else if (sbi->lz4.max_pclusterblks >
+			   Z_EROFS_PCLUSTER_MAX_SIZE / EROFS_BLKSIZ) {
+			erofs_err(sb, "too large lz4 pclusterblks %u",
+				  sbi->lz4.max_pclusterblks);
+			return -EINVAL;
+		} else if (sbi->lz4.max_pclusterblks >= 2) {
+			erofs_info(sb, "EXPERIMENTAL big pcluster feature in use. Use at your own risk!");
+		}
 	} else {
 		distance = le16_to_cpu(dsb->u1.lz4_max_distance);
+		sbi->lz4.max_pclusterblks = 1;
 	}
 
 	if (lz4) {
