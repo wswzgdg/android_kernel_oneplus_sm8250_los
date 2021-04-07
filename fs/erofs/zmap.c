@@ -458,6 +458,8 @@ static int z_erofs_get_extent_compressedlen(struct z_erofs_maprecorder *m,
 	lcn = m->lcn + 1;
 	if (m->compressedlcs)
 		goto out;
+	if (lcn == initial_lcn)
+		goto err_bonus_cblkcnt;
 
 	err = z_erofs_load_cluster_from_disk(m, lcn);
 	if (err)
@@ -537,10 +539,10 @@ int z_erofs_map_blocks_iter(struct inode *inode,
 
 	lclusterbits = vi->z_logical_clusterbits;
 	ofs = map->m_la;
-	m.lcn = ofs >> lclusterbits;
+	initial_lcn = ofs >> lclusterbits;
 	endoff = ofs & ((1 << lclusterbits) - 1);
 
-	err = z_erofs_load_cluster_from_disk(&m, m.lcn);
+	err = z_erofs_load_cluster_from_disk(&m, initial_lcn);
 	if (err)
 		goto unmap_out;
 
@@ -588,7 +590,7 @@ map->m_plen = 1 << lclusterbits;
 	map->m_pa = blknr_to_addr(m.pblk);
 	map->m_flags |= EROFS_MAP_MAPPED;
 
-	err = z_erofs_get_extent_compressedlen(&m, m.lcn);
+	err = z_erofs_get_extent_compressedlen(&m, initial_lcn);
 	if (err)
 		goto out;
 unmap_out:
