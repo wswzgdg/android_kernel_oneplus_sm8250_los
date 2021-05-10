@@ -453,8 +453,6 @@ static int z_erofs_get_extent_compressedlen(struct z_erofs_maprecorder *m,
 	lcn = m->lcn + 1;
 	if (m->compressedlcs)
 		goto out;
-	if (lcn == initial_lcn)
-		goto err_bonus_cblkcnt;
 
 	err = z_erofs_load_cluster_from_disk(m, lcn);
 	if (err)
