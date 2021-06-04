@@ -19,7 +19,7 @@ struct allowedips_node {
 	u8 bits[16] __aligned(__alignof(u64));
 
 	/* Keep rarely used members at bottom to be beyond cache line. */
-	unsigned long parent_bit_packed;
+	struct allowedips_node *__rcu *parent_bit; /* XXX: this puts us at 68->128 bytes instead of 60->64 bytes!! */
 	union {
 		struct list_head peer_list;
 		struct rcu_head rcu;
