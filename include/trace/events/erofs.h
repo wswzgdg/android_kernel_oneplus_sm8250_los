@@ -35,6 +35,9 @@ TRACE_EVENT(erofs_lookup,
 	TP_STRUCT__entry(
 		__field(dev_t,		dev	)
 		__field(erofs_nid_t,	nid	)
+TP_STRUCT__entry(
+		__field(dev_t,		dev	)
+		__field(erofs_nid_t,	nid	)
 		__string(name,		dentry->d_name.name	)
 		__field(unsigned int,	flags	)
 	),
@@ -49,6 +52,7 @@ TRACE_EVENT(erofs_lookup,
 	TP_printk("dev = (%d,%d), pnid = %llu, name:%s, flags:%x",
 		show_dev_nid(__entry),
 		__get_str(name),
+		__entry->flags)
 		__entry->flags)
 );
 

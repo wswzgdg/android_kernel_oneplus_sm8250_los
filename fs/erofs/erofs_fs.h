@@ -8,6 +8,7 @@
 #ifndef __EROFS_FS_H
 #define __EROFS_FS_H
 
+#define EROFS_SUPER_MAGIC_V1	0xE0F5E1E2
 #define EROFS_SUPER_OFFSET      1024
 
 #define EROFS_FEATURE_COMPAT_SB_CHKSUM          0x00000001
@@ -16,6 +17,7 @@
  * Any bits that aren't in EROFS_ALL_FEATURE_INCOMPAT should
  * be incompatible with this kernel version.
  */
+#define EROFS_FEATURE_INCOMPAT_LZ4_0PADDING	0x00000001
 #define EROFS_FEATURE_INCOMPAT_LZ4_0PADDING	0x00000001
 #define EROFS_FEATURE_INCOMPAT_COMPR_CFGS	0x00000002
 #define EROFS_FEATURE_INCOMPAT_BIG_PCLUSTER	0x00000002
@@ -26,13 +28,13 @@
 
 #define EROFS_SB_EXTSLOT_SIZE	16
 
-/* erofs on-disk super block (currently 128 bytes) */
+/* 128-byte erofs on-disk super block */
 struct erofs_super_block {
 	__le32 magic;           /* file system magic number */
 	__le32 checksum;        /* crc32c(super_block) */
 	__le32 feature_compat;
 	__u8 blkszbits;         /* support block_size == PAGE_SIZE only */
-	__u8 sb_extslots;	/* superblock size = 128 + sb_extslots * 16 */
+	__u8 reserved;
 
 	__le16 root_nid;	/* nid of root directory */
 	__le64 inos;            /* total valid ino # (== f_files - f_favail) */
@@ -225,13 +227,16 @@ struct z_erofs_lz4_cfgs {
  * bit 0 : COMPACTED_2B indexes (0 - off; 1 - on)
  *  e.g. for 4k logical cluster size,      4B        if compacted 2B is off;
  *                                  (4B) + 2B + (4B) if compacted 2B is on.
- * bit 1 : HEAD1 big pcluster (0 - off; 1 - on)
+* bit 1 : HEAD1 big pcluster (0 - off; 1 - on)
  * bit 2 : HEAD2 big pcluster (0 - off; 1 - on)
  */
-#define Z_EROFS_ADVISE_COMPACTED_2B		0x0001
-#define Z_EROFS_ADVISE_BIG_PCLUSTER_1		0x0002
-#define Z_EROFS_ADVISE_BIG_PCLUSTER_2		0x0004
+#define Z_EROFS_ADVISE_COMPACTED_2B_BIT		0
+#define Z_EROFS_ADVISE_BIG_PCLUSTER_1_BIT	1
+#define Z_EROFS_ADVISE_BIG_PCLUSTER_2_BIT	2
 
+#define Z_EROFS_ADVISE_COMPACTED_2B	(1 << Z_EROFS_ADVISE_COMPACTED_2B_BIT)
+#define Z_EROFS_ADVISE_BIG_PCLUSTER_1	(1 << Z_EROFS_ADVISE_BIG_PCLUSTER_1_BIT)
+#define Z_EROFS_ADVISE_BIG_PCLUSTER_2	(1 << Z_EROFS_ADVISE_BIG_PCLUSTER_2_BIT)
 struct z_erofs_map_header {
 	__le32	h_reserved1;
 	__le16	h_advise;
@@ -242,7 +247,9 @@ struct z_erofs_map_header {
 	__u8	h_algorithmtype;
 	/*
 	 * bit 0-2 : logical cluster bits - 12, e.g. 0 for 4096;
-	 * bit 3-7 : reserved.
+	 * bit 3-4 : (physical - logical) cluster bits of head 1:
+	 *       For example, if logical clustersize = 4096, 1 for 8192.
+	 * bit 5-7 : (physical - logical) cluster bits of head 2.
 	 */
 	__u8	h_clusterbits;
 };

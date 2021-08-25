@@ -60,14 +60,14 @@ struct z_erofs_pcluster {
 	/* A: point to next chained pcluster or TAILs */
 	z_erofs_next_pcluster_t next;
 
-	/* A: lower limit of decompressed length and if full length or not */
+/* A: lower limit of decompressed length and if full length or not */
 	unsigned int length;
-
-	/* I: physical cluster size in pages */
-	unsigned short pclusterpages;
 
 	/* I: compression algorithm format */
 	unsigned char algorithmformat;
+
+	/* I: bit shift of physical cluster size */
+	unsigned char clusterbits;
 
 	/* A: compressed pages (can be cached or inplaced pages) */
 	struct page *compressed_pages[];
@@ -84,13 +84,15 @@ struct z_erofs_pcluster {
 
 #define Z_EROFS_PCLUSTER_NIL            (NULL)
 
+#define Z_EROFS_WORKGROUP_SIZE  sizeof(struct z_erofs_pcluster)
+
 struct z_erofs_decompressqueue {
 	struct super_block *sb;
 	atomic_t pending_bios;
 	z_erofs_next_pcluster_t head;
 
 	union {
-		struct completion done;
+wait_queue_head_t wait;
 		struct work_struct work;
 		struct kthread_work kthread_work;
 	} u;
