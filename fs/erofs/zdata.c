@@ -7,7 +7,11 @@
 #include "compress.h"
 #include <linux/prefetch.h>
 #include <linux/cpuhotplug.h>
+#include <linux/slab.h>
+#include <linux/cpuhotplug.h>
+
 #include <trace/events/erofs.h>
+#include <uapi/linux/sched/types.h>
 
 /*
  * since pclustersize is variable for big pcluster feature, introduce slab
@@ -144,15 +148,19 @@ static void erofs_destroy_percpu_workers(void)
 
 static struct kthread_worker *erofs_init_percpu_worker(int cpu)
 {
+	struct sched_param sp;
 	struct kthread_worker *worker =
 		kthread_create_worker_on_cpu(cpu, 0, "erofs_worker/%u", cpu);
 
 	if (IS_ERR(worker))
 		return worker;
-	if (IS_ENABLED(CONFIG_EROFS_FS_PCPU_KTHREAD_HIPRI))
-		sched_set_fifo_low(worker->task);
-	else
-		sched_set_normal(worker->task, 0);
+	if (IS_ENABLED(CONFIG_EROFS_FS_PCPU_KTHREAD_HIPRI)) {
+		sp.sched_priority = 1;
+		sched_setscheduler_nocheck(worker->task, SCHED_FIFO, &sp);
+	} else {
+		sp.sched_priority = 0;
+		sched_setscheduler_nocheck(worker->task, SCHED_NORMAL, &sp);
+	}
 	return worker;
 }
 
@@ -1208,6 +1216,13 @@ static void z_erofs_decompressqueue_work(struct work_struct *work)
 	put_pages_list(&pagepool);
 	kvfree(bgq);
 }
+
+#ifdef CONFIG_EROFS_FS_PCPU_KTHREAD
+static void z_erofs_decompressqueue_kthread_work(struct kthread_work *work)
+{
+	z_erofs_decompressqueue_work((struct work_struct *)work);
+}
+#endif
 
 static struct page *pickup_page_for_submission(struct z_erofs_pcluster *pcl,
 					       unsigned int nr,
