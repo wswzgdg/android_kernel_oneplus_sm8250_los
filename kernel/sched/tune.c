@@ -11,7 +11,9 @@
 
 #include "sched.h"
 #ifdef OPLUS_FEATURE_POWER_CPUFREQ
+#ifdef CONFIG_SCHED_WALT
 #include "walt.h"
+#endif
 #endif
 
 bool schedtune_initialized = false;
@@ -118,7 +120,9 @@ struct schedtune {
 	 * towards idle CPUs */
 	int prefer_idle;
 #ifdef OPLUS_FEATURE_POWER_CPUFREQ
+#ifdef CONFIG_SCHED_WALT
 	unsigned int window_policy;
+#endif
 #endif
 #ifdef OPLUS_FEATURE_POWER_EFFICIENCY
 	bool discount_wait_time;
@@ -161,7 +165,9 @@ root_schedtune = {
 	.colocate_update_disabled = false,
 #endif
 #ifdef OPLUS_FEATURE_POWER_CPUFREQ
+#ifdef CONFIG_SCHED_WALT
 	.window_policy = 3,
+#endif
 #endif
 #ifdef OPLUS_FEATURE_POWER_EFFICIENCY
 	.discount_wait_time = false,
@@ -723,6 +729,7 @@ boost_write(struct cgroup_subsys_state *css, struct cftype *cft,
 }
 
 #ifdef OPLUS_FEATURE_POWER_CPUFREQ
+#ifdef CONFIG_SCHED_WALT
 unsigned int schedtune_window_policy(struct task_struct *p)
 {
 	struct schedtune *st;
@@ -738,6 +745,7 @@ unsigned int schedtune_window_policy(struct task_struct *p)
 
 	return window_policy;
 }
+#endif
 
 unsigned int uclamp_discount_wait_time(struct task_struct *p)
 {
@@ -787,6 +795,7 @@ unsigned int uclamp_ed_task_filter(struct task_struct *p)
 	return ret;
 }
 
+#ifdef CONFIG_SCHED_WALT
 static u64
 window_policy_read(struct cgroup_subsys_state *css,
 		struct cftype *cft)
@@ -808,6 +817,7 @@ window_policy_write(struct cgroup_subsys_state *css, struct cftype *cft,
 	
 	return 0;
 }
+#endif
 #endif
 
 #ifdef CONFIG_STUNE_ASSIST
@@ -899,11 +909,13 @@ static struct cftype files[] = {
 		.write_u64 = prefer_idle_write_wrapper,
 	},
 #ifdef OPLUS_FEATURE_POWER_CPUFREQ
+#ifdef CONFIG_SCHED_WALT
 	{
 		.name = "window_policy",
 		.read_u64 = window_policy_read,
 		.write_u64 = window_policy_write,
 	},
+#endif
 #endif
 #ifdef OPLUS_FEATURE_POWER_EFFICIENCY
 	{
