@@ -1278,6 +1278,11 @@ config CPUSET_TOP_APP
 	  The CPU mask to use for the top-app cpuset.
 
 endif
+config UCLAMP_ASSIST
+	bool "UClamp configuration helper"
+	depends on ANDROID && UCLAMP_TASK && UCLAMP_TASK_GROUP
+	help
+	  This option enabled in-kernel uclamp setting overrides
 
 config SYSFS_DEPRECATED
 	bool "Enable deprecated sysfs features to support old userspace tools"
