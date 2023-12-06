@@ -7,12 +7,9 @@
 #include "compress.h"
 #include <linux/prefetch.h>
 #include <linux/cpuhotplug.h>
-<<<<<<< HEAD
 #include <linux/slab.h>
 #include <linux/cpuhotplug.h>
 
-=======
->>>>>>> 1594acf60709d (BACKPORT: erofs: add per-cpu threads for decompression as an option)
 #include <trace/events/erofs.h>
 #include <uapi/linux/sched/types.h>
 
@@ -342,24 +339,10 @@ static struct kthread_worker __rcu **z_erofs_pcpu_workers;
 
 static void erofs_destroy_percpu_workers(void)
 {
-<<<<<<< HEAD
 	erofs_cpu_hotplug_destroy();
 	erofs_destroy_percpu_workers();
 	destroy_workqueue(z_erofs_workqueue);
 	z_erofs_destroy_pcluster_pool();
-=======
-	struct kthread_worker *worker;
-	unsigned int cpu;
-
-	for_each_possible_cpu(cpu) {
-		worker = rcu_dereference_protected(
-					z_erofs_pcpu_workers[cpu], 1);
-		rcu_assign_pointer(z_erofs_pcpu_workers[cpu], NULL);
-		if (worker)
-			kthread_destroy_worker(worker);
-	}
-	kfree(z_erofs_pcpu_workers);
->>>>>>> 1594acf60709d (BACKPORT: erofs: add per-cpu threads for decompression as an option)
 }
 
 static struct kthread_worker *erofs_init_percpu_worker(int cpu)
@@ -367,12 +350,13 @@ static struct kthread_worker *erofs_init_percpu_worker(int cpu)
 	struct kthread_worker *worker =
 		kthread_create_worker_on_cpu(cpu, 0, "erofs_worker/%u", cpu);
 
-<<<<<<< HEAD
-	z_erofs_workqueue = alloc_workqueue("erofs_unzipd",
-			WQ_UNBOUND | WQ_HIGHPRI,
-			onlinecpus + onlinecpus / 4);
+z_erofs_workqueue = alloc_workqueue("erofs_unzipd",
+			  WQ_UNBOUND | WQ_HIGHPRI,
+			  onlinecpus + onlinecpus / 4);
 	return z_erofs_workqueue ? 0 : -ENOMEM;
-=======
+}
+
+#ifdef CONFIG_EROFS_FS_PCPU_KTHREAD
 	if (IS_ERR(worker))
 		return worker;
 	if (IS_ENABLED(CONFIG_EROFS_FS_PCPU_KTHREAD_HIPRI))
@@ -392,7 +376,7 @@ static int erofs_init_percpu_workers(void)
 	if (!z_erofs_pcpu_workers)
 		return -ENOMEM;
 
-	for_each_online_cpu(cpu) {	/* could miss cpu{off,on}line? */
+	for_each_online_cpu(cpu) {
 		worker = erofs_init_percpu_worker(cpu);
 		if (!IS_ERR(worker))
 			rcu_assign_pointer(z_erofs_pcpu_workers[cpu], worker);
@@ -461,7 +445,7 @@ static void erofs_cpu_hotplug_destroy(void)
 	if (erofs_cpuhp_state)
 		cpuhp_remove_state_nocalls(erofs_cpuhp_state);
 }
-#else /* !CONFIG_HOTPLUG_CPU || !CONFIG_EROFS_FS_PCPU_KTHREAD */
+#else
 static inline int erofs_cpu_hotplug_init(void) { return 0; }
 static inline void erofs_cpu_hotplug_destroy(void) {}
 #endif
@@ -472,7 +456,6 @@ void z_erofs_exit_zip_subsystem(void)
 	erofs_destroy_percpu_workers();
 	destroy_workqueue(z_erofs_workqueue);
 	z_erofs_destroy_pcluster_pool();
->>>>>>> 1594acf60709d (BACKPORT: erofs: add per-cpu threads for decompression as an option)
 }
 
 int __init z_erofs_init_zip_subsystem(void)
@@ -482,34 +465,18 @@ int err = z_erofs_create_pcluster_pool();
 	if (err)
 		goto out_error_pcluster_pool;
 
-<<<<<<< HEAD
 	err = z_erofs_init_workqueue();
 	if (err)
 		goto out_error_workqueue_init;
 
 	err = erofs_init_percpu_workers();
 	if (err)
-=======
-	z_erofs_workqueue = alloc_workqueue("erofs_worker",
-			WQ_UNBOUND | WQ_HIGHPRI, num_possible_cpus());
-	if (!z_erofs_workqueue) {
-		err = -ENOMEM;
-		goto out_error_workqueue_init;
-	}
-
-	err = erofs_init_percpu_workers();
-	if (err)
->>>>>>> 1594acf60709d (BACKPORT: erofs: add per-cpu threads for decompression as an option)
 		goto out_error_pcpu_worker;
 
 	err = erofs_cpu_hotplug_init();
 	if (err < 0)
 		goto out_error_cpuhp_init;
-<<<<<<< HEAD
 	return 0;
-=======
-	return err;
->>>>>>> 1594acf60709d (BACKPORT: erofs: add per-cpu threads for decompression as an option)
 
 out_error_cpuhp_init:
 	erofs_destroy_percpu_workers();
@@ -1155,10 +1122,6 @@ static void z_erofs_decompressqueue_kthread_work(struct kthread_work *work)
 	z_erofs_decompressqueue_work((struct work_struct *)work);
 }
 #endif
-<<<<<<< HEAD
-
-=======
->>>>>>> 1594acf60709d (BACKPORT: erofs: add per-cpu threads for decompression as an option)
 static void z_erofs_decompress_kickoff(struct z_erofs_decompressqueue *io,
 				       bool sync, int bios)
 {
@@ -1183,10 +1146,7 @@ static void z_erofs_decompress_kickoff(struct z_erofs_decompressqueue *io,
 		worker = rcu_dereference(
 				z_erofs_pcpu_workers[raw_smp_processor_id()]);
 		if (!worker) {
-<<<<<<< HEAD
-=======
 			INIT_WORK(&io->u.work, z_erofs_decompressqueue_work);
->>>>>>> 1594acf60709d (BACKPORT: erofs: add per-cpu threads for decompression as an option)
 			queue_work(z_erofs_workqueue, &io->u.work);
 		} else {
 			kthread_queue_work(worker, &io->u.kthread_work);
