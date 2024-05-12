@@ -2407,7 +2407,7 @@ static void __f2fs_decompress_end_io(struct decompress_io_ctx *dic, bool failed)
 		unlock_page(rpage);
 	}
 
-	f2fs_put_dic(dic);
+	f2fs_put_dic(dic, in_task);
 }
 
 static void f2fs_verify_cluster(struct work_struct *work)
@@ -2424,14 +2424,15 @@ static void f2fs_verify_cluster(struct work_struct *work)
 			SetPageError(rpage);
 	}
 
-	__f2fs_decompress_end_io(dic, false);
+	__f2fs_decompress_end_io(dic, false, true);
 }
 
 /*
  * This is called when a compressed cluster has been decompressed
  * (or failed to be read and/or decompressed).
  */
-void f2fs_decompress_end_io(struct decompress_io_ctx *dic, bool failed)
+void f2fs_decompress_end_io(struct decompress_io_ctx *dic, bool failed,
+				bool in_task)
 {
 	if (!failed && dic->need_verity) {
 		/*
@@ -2443,7 +2444,7 @@ void f2fs_decompress_end_io(struct decompress_io_ctx *dic, bool failed)
 		INIT_WORK(&dic->verity_work, f2fs_verify_cluster);
 		fsverity_enqueue_verify_work(&dic->verity_work);
 	} else {
-		__f2fs_decompress_end_io(dic, failed);
+		__f2fs_decompress_end_io(dic, failed, in_task);
 	}
 }
 
@@ -2452,17 +2453,44 @@ void f2fs_decompress_end_io(struct decompress_io_ctx *dic, bool failed)
  *
  * This is called when the page is no longer needed and can be freed.
  */
-void f2fs_put_page_dic(struct page *page)
+void f2fs_put_page_dic(struct page *page, bool in_task)
 {
 	struct decompress_io_ctx *dic =
 			(struct decompress_io_ctx *)page_private(page);
 
-	f2fs_put_dic(dic);
+	f2fs_put_dic(dic, in_task);
+}
+
+/*
+ * check whether cluster blocks are contiguous, and add extent cache entry
+ * only if cluster blocks are logically and physically contiguous.
+ */
+unsigned int f2fs_cluster_blocks_are_contiguous(struct dnode_of_data *dn,
+						unsigned int ofs_in_node)
+{
+	bool compressed = data_blkaddr(dn->inode, dn->node_page,
+					ofs_in_node) == COMPRESS_ADDR;
+	int i = compressed ? 1 : 0;
+	block_t first_blkaddr = data_blkaddr(dn->inode, dn->node_page,
+							ofs_in_node + i);
+
+	for (i += 1; i < F2FS_I(dn->inode)->i_cluster_size; i++) {
+		block_t blkaddr = data_blkaddr(dn->inode, dn->node_page,
+							ofs_in_node + i);
+
+		if (!__is_valid_data_blkaddr(blkaddr))
+			break;
+		if (first_blkaddr + i - (compressed ? 1 : 0) != blkaddr)
+			return 0;
+	}
+
+	return compressed ? i - 1 : i;
 }
 
 const struct address_space_operations f2fs_compress_aops = {
 	.releasepage = f2fs_release_page,
 	.invalidatepage = f2fs_invalidate_page,
+	.migratepage	= f2fs_migrate_page,
 };
 
 struct address_space *COMPRESS_MAPPING(struct f2fs_sb_info *sbi)
@@ -2511,12 +2539,11 @@ void f2fs_cache_compressed_page(struct f2fs_sb_info *sbi, struct page *page,
 
 	set_page_private_data(cpage, ino);
 
+        copy_page(page_address(cpage), page_address(page));
 	if (!f2fs_is_valid_blkaddr(sbi, blkaddr, DATA_GENERIC_ENHANCE_READ))
 		goto out;
 
-	memcpy(page_address(cpage), page_address(page), PAGE_SIZE);
 	SetPageUptodate(cpage);
-out:
 	f2fs_put_page(cpage, 1);
 }
 
@@ -2546,7 +2573,7 @@ bool f2fs_load_compressed_page(struct f2fs_sb_info *sbi, struct page *page,
 
 void f2fs_invalidate_compress_pages(struct f2fs_sb_info *sbi, nid_t ino)
 {
-	struct address_space *mapping = sbi->compress_inode->i_mapping;
+	struct address_space *mapping = COMPRESS_MAPPING(sbi);
 	struct pagevec pvec;
 	pgoff_t index = 0;
 	pgoff_t end = MAX_BLKADDR(sbi);
@@ -2621,7 +2648,10 @@ void f2fs_destroy_compress_inode(struct f2fs_sb_info *sbi)
 int f2fs_init_page_array_cache(struct f2fs_sb_info *sbi)
 {
 	dev_t dev = sbi->sb->s_bdev->bd_dev;
-	char slab_name[32];
+	char slab_name[35];
+
+	if (!f2fs_sb_has_compression(sbi))
+		return 0;
 
 	sprintf(slab_name, "f2fs_page_array_entry-%u:%u", MAJOR(dev), MINOR(dev));
 
@@ -2630,9 +2660,7 @@ int f2fs_init_page_array_cache(struct f2fs_sb_info *sbi)
 
 	sbi->page_array_slab = f2fs_kmem_cache_create(slab_name,
 					sbi->page_array_slab_size);
-	if (!sbi->page_array_slab)
-		return -ENOMEM;
-	return 0;
+	return sbi->page_array_slab ? 0 : -ENOMEM;
 }
 
 void f2fs_destroy_page_array_cache(struct f2fs_sb_info *sbi)
@@ -2640,67 +2668,24 @@ void f2fs_destroy_page_array_cache(struct f2fs_sb_info *sbi)
 	kmem_cache_destroy(sbi->page_array_slab);
 }
 
-static int __init f2fs_init_cic_cache(void)
+int __init f2fs_init_compress_cache(void)
 {
 	cic_entry_slab = f2fs_kmem_cache_create("f2fs_cic_entry",
 					sizeof(struct compress_io_ctx));
 	if (!cic_entry_slab)
 		return -ENOMEM;
-	return 0;
-}
-
-static void f2fs_destroy_cic_cache(void)
-{
-	kmem_cache_destroy(cic_entry_slab);
-}
-
-static int __init f2fs_init_dic_cache(void)
-{
 	dic_entry_slab = f2fs_kmem_cache_create("f2fs_dic_entry",
 					sizeof(struct decompress_io_ctx));
 	if (!dic_entry_slab)
-		return -ENOMEM;
-	return 0;
-}
-
-static void f2fs_destroy_dic_cache(void)
-{
-	kmem_cache_destroy(dic_entry_slab);
-}
-
-int __init f2fs_init_compress_cache(void)
-{
-	int err;
-
-#ifdef CONFIG_F2FS_FS_COMPRESSION_FIXED_OUTPUT
-	err = f2fs_init_pcpubuf();
-	if (err)
-		goto out;
-#endif
-	err = f2fs_init_cic_cache();
-	if (err)
-		goto free_pcpubuf;
-	err = f2fs_init_dic_cache();
-	if (err)
 		goto free_cic;
 	return 0;
-free_pcpubuf:
-#ifdef CONFIG_F2FS_FS_COMPRESSION_FIXED_OUTPUT
-	f2fs_destroy_pcpubuf();
-#endif
 free_cic:
-	f2fs_destroy_cic_cache();
-#ifdef CONFIG_F2FS_FS_COMPRESSION_FIXED_OUTPUT
-out:
-#endif
+	kmem_cache_destroy(cic_entry_slab);
 	return -ENOMEM;
 }
 
 void f2fs_destroy_compress_cache(void)
 {
-	f2fs_destroy_dic_cache();
-	f2fs_destroy_cic_cache();
-#ifdef CONFIG_F2FS_FS_COMPRESSION_FIXED_OUTPUT
-	f2fs_destroy_pcpubuf();
-#endif
+	kmem_cache_destroy(dic_entry_slab);
+	kmem_cache_destroy(cic_entry_slab);
 }
