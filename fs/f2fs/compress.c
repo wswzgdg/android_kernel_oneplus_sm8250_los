@@ -347,48 +347,56 @@ static int lz4_compress_pages(struct compress_ctx *cc)
 
 static int lz4_decompress_pages(struct decompress_io_ctx *dic)
 {
-	unsigned long expected;
+    unsigned long expected;
 #ifdef CONFIG_F2FS_FS_COMPRESSION_FIXED_OUTPUT
-	bool accel = false;
+    bool accel = false;
 #endif
-	int ret = 0;
+    int ret = 0;
 
-	if (f2fs_compress_layout(dic->inode) == COMPRESS_FIXED_INPUT) {
-		expected = PAGE_SIZE << dic->log_cluster_size;
-		ret = LZ4_decompress_safe(dic->cbuf->cdata, dic->rbuf,
-						dic->clen, dic->rlen);
+    if (f2fs_compress_layout(dic->inode) == COMPRESS_FIXED_INPUT) {
+        expected = PAGE_SIZE << dic->log_cluster_size;
+        
+        /* 这里插入 ARM64 NEON 加速逻辑 */
+#if defined(CONFIG_ARM64) && defined(CONFIG_KERNEL_MODE_NEON)
+        ret = LZ4_arm64_decompress_safe(dic->cbuf->cdata, dic->rbuf,
+                        dic->clen, dic->rlen, false);
+#else
+        ret = LZ4_decompress_safe(dic->cbuf->cdata, dic->rbuf,
+                        dic->clen, dic->rlen);
+#endif
+
 #ifdef CONFIG_F2FS_FS_COMPRESSION_FIXED_OUTPUT
-	} else {
-		uint8_t *dst = (uint8_t *)dic->rbuf + dic->rofs;
-		const uint8_t *src = (uint8_t *)dic->cbuf + dic->cofs;
-		uint8_t *dstptr = dst;
-		const uint8_t *srcptr = src;
+    } else {
+        uint8_t *dst = (uint8_t *)dic->rbuf + dic->rofs;
+        const uint8_t *src = (uint8_t *)dic->cbuf + dic->cofs;
+        uint8_t *dstptr = dst;
+        const uint8_t *srcptr = src;
 
-		expected = dic->rlen;
+        expected = dic->rlen;
 #ifdef __ARCH_HAS_LZ4_ACCELERATOR
-		if (f2fs_lz4_decompress_accel_enable() &&
-		    dic->rlen > LZ4_FAST_MARGIN &&
-		    dic->clen > LZ4_FAST_MARGIN) {
-			accel = true;
+        if (f2fs_lz4_decompress_accel_enable() &&
+            dic->rlen > LZ4_FAST_MARGIN &&
+            dic->clen > LZ4_FAST_MARGIN) {
+            accel = true;
 
-			ret = f2fs_lz4_decompress_asm(&dstptr, dst, dst + dic->rlen - LZ4_FAST_MARGIN,
-						  &srcptr, src + dic->clen - LZ4_FAST_MARGIN,
-						  !!dic->inplace_io[dic->current_blk]);
-			if (ret) {
-				printk_ratelimited("%sF2FS-fs (%s): lz4 decompress accel failed, ret:%d\n",
-					KERN_ERR, F2FS_I_SB(dic->inode)->sb->s_id, ret);
-				return -EIO;
-			}
+            ret = f2fs_lz4_decompress_asm(&dstptr, dst, dst + dic->rlen - LZ4_FAST_MARGIN,
+                          &srcptr, src + dic->clen - LZ4_FAST_MARGIN,
+                          !!dic->inplace_io[dic->current_blk]);
+            if (ret) {
+                printk_ratelimited("%sF2FS-fs (%s): lz4 decompress accel failed, ret:%d\n",
+                    KERN_ERR, F2FS_I_SB(dic->inode)->sb->s_id, ret);
+                return -EIO;
+            }
 
-			ret = __lz4_decompress_safe_partial(dstptr, srcptr, dst,
-						  dic->rlen, src, dic->clen, false);
-		}
+            ret = __lz4_decompress_safe_partial(dstptr, srcptr, dst,
+                          dic->rlen, src, dic->clen, false);
+        }
 #endif
-		if (!accel)
-			ret = LZ4_decompress_safe_partial(srcptr, dstptr,
-						  dic->clen, dic->rlen, dic->rlen);
+        if (!accel)
+            ret = LZ4_decompress_safe_partial(srcptr, dstptr,
+                          dic->clen, dic->rlen, dic->rlen);
 #endif
-	}
+    }
 
 	if (ret < 0) {
 		printk_ratelimited("%sF2FS-fs (%s): lz4 decompress failed, ret:%d\n",
