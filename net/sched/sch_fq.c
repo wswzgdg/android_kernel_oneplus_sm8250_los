@@ -465,7 +465,7 @@ static struct sk_buff *fq_dequeue(struct Qdisc *sch)
 	struct sk_buff *skb;
 	struct fq_flow *f;
 	unsigned long rate;
-	u32 plen;
+ 	u32 plen;
 
 	skb = fq_dequeue_head(sch, &q->internal);
 	if (skb)
