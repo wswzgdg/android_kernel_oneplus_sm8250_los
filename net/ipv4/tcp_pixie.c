@@ -2,25 +2,26 @@
 #include <net/tcp.h>
 #include <linux/inet.h>
 #include <linux/random.h>
+#include <linux/slab.h> // 添加kmalloc依赖
 
 /* 可调参数 */
-static int rate = 1000000000;  // 初始速率 1000Mbps
+static int rate = 100000000;
 module_param(rate, int, 0644);
 MODULE_PARM_DESC(rate, "Initial sending rate in bytes/sec");
 
-static int feedback = 2;      // 反馈周期系数
+static int feedback = 2;
 module_param(feedback, int, 0644);
 MODULE_PARM_DESC(feedback, "Feedback window multiplier");
 
-static int gamma = 3;         // RTT 激进系数
+static int gamma = 3;
 module_param(gamma, int, 0644);
 MODULE_PARM_DESC(gamma, "RTT aggresiveness factor");
 
-static int burst_gain = 2;    // 突发增益系数
+static int burst_gain = 2;
 module_param(burst_gain, int, 0644);
 MODULE_PARM_DESC(burst_gain, "Burst gain multiplier");
 
-static int loss_thresh = 3;   // 可忽略的丢包阈值
+static int loss_thresh = 3;
 module_param(loss_thresh, int, 0644);
 MODULE_PARM_DESC(loss_thresh, "Loss ignore threshold");
 
@@ -31,7 +32,7 @@ struct sample {
 };
 
 struct pixie {
-    /* 基础拥塞控制字段 */
+    /* 基础字段 */
     u64    rate;
     u16    start;
     u16    end;
@@ -39,16 +40,16 @@ struct pixie {
     u32    curr_losses;
     struct sample *samples;
     
-    /* RTT 跟踪字段 */
+    /* RTT跟踪 */
     u32    currRTT;
     u32    minRTT;
     
-    /* 突发控制字段 */
+    /* 突发控制 */
     u32    burst_quota;
     u32    burst_window;
     u32    last_burst;
     
-    /* 选择性重传字段 */
+    /* 重传控制 */
     u32    retrans_offset;
     u32    retrans_len;
     u8     need_retrans:1,
@@ -63,15 +64,12 @@ static void pixie_acked(struct sock *sk, const struct ack_sample *sample)
     if (sample->rtt_us < 0)
         return;
 
-    /* 更新RTT统计 */
     pixie->currRTT = sample->rtt_us;
     if (pixie->minRTT == 0 || sample->rtt_us < pixie->minRTT) {
         pixie->minRTT = sample->rtt_us;
-        /* 动态调整突发窗口为BDP的1/2 */
         pixie->burst_window = (pixie->rate * pixie->minRTT) / (2 * USEC_PER_SEC);
     }
     
-    /* 处理重复ACK（类似NACK） */
     if (sample->pkts_acked == 0) {
         pixie->need_retrans = 1;
         pixie->retrans_offset = tcp_sk(sk)->snd_una;
@@ -89,9 +87,8 @@ static void pixie_update_burst(struct sock *sk)
         pixie->burst_quota = pixie->burst_window;
         pixie->last_burst = now;
         
-        /* 添加随机扰动避免全局同步 */
         if (pixie->burst_quota > 0) {
-            pixie->burst_quota += prandom_u32() % (tp->mss_cache * 4);
+            pixie->burst_quota += prandom_u32_max(tp->mss_cache * 4);
         }
     }
 }
@@ -104,21 +101,18 @@ static void pixie_main(struct sock *sk, const struct rate_sample *rs)
     u32 cwnd;
     u64 prate;
 
-    /* 无效样本检查 */
     if (rs->delivered < 0 || rs->interval_us <= 0)
         return;
 
-    /* 初始化阶段 */
     if (!pixie->samples) {
         cwnd = pixie->rate / tp->mss_cache;
         cwnd *= (tp->srtt_us >> 3);
         cwnd /= USEC_PER_SEC;
         tp->snd_cwnd = min(2 * cwnd, tp->snd_cwnd_clamp);
-        sk->sk_pacing_rate = min_t(u64, pixie->rate, READ_ONCE(sk->sk_max_pacing_rate));
+        sk->sk_pacing_rate = min_t(u64, pixie->rate, sk->sk_max_pacing_rate);
         return;
     }
 
-    /* 丢包处理 */
     if (rs->losses > 0) {
         pixie->need_retrans = 1;
         pixie->retrans_offset = tp->snd_una;
@@ -126,7 +120,6 @@ static void pixie_main(struct sock *sk, const struct rate_sample *rs)
         pixie->ignore_loss = (rs->losses < loss_thresh);
     }
 
-    /* 更新采样窗口 */
     pixie->curr_acked += rs->acked_sacked;
     pixie->curr_losses += rs->losses;
     pixie->samples[pixie->end++] = (struct sample){
@@ -135,7 +128,6 @@ static void pixie_main(struct sock *sk, const struct rate_sample *rs)
         ._tstamp_us = now
     };
 
-    /* 移除过期样本 */
     while ((__s16)(pixie->start - pixie->end) < 0) {
         if (2 * (now - pixie->samples[pixie->start]._tstamp_us) > feedback * tp->srtt_us) {
             pixie->curr_acked -= pixie->samples[pixie->start]._acked;
@@ -146,14 +138,12 @@ static void pixie_main(struct sock *sk, const struct rate_sample *rs)
         }
     }
 
-    /* 计算基准cwnd */
     cwnd = pixie->rate / tp->mss_cache;
     cwnd *= (pixie->curr_acked + pixie->curr_losses);
     cwnd /= max(pixie->curr_acked, 1U);
     cwnd *= (tp->srtt_us >> 3);
     cwnd /= USEC_PER_SEC;
 
-    /* 突发控制 */
     pixie_update_burst(sk);
     if (pixie->currRTT && pixie->minRTT && 
         pixie->currRTT < gamma * pixie->minRTT &&
@@ -163,7 +153,6 @@ static void pixie_main(struct sock *sk, const struct rate_sample *rs)
         pixie->burst_quota -= min(burst, rs->acked_sacked * tp->mss_cache);
     }
 
-    /* 选择性重传 */
     if (pixie->need_retrans && !pixie->ignore_loss && 
         pixie->currRTT < 2 * pixie->minRTT) {
         u32 retrans = min(pixie->retrans_len, pixie->rate * pixie->currRTT / USEC_PER_SEC);
@@ -174,13 +163,11 @@ static void pixie_main(struct sock *sk, const struct rate_sample *rs)
         }
     }
 
-    /* 计算pacing rate */
     prate = pixie->rate;
     if (pixie->burst_quota > 0 || pixie->need_retrans) {
         prate *= burst_gain;
     }
 
-    /* 应用新参数 */
     tp->snd_cwnd = min(cwnd, tp->snd_cwnd_clamp);
     sk->sk_pacing_rate = min_t(u64, prate, sk->sk_max_pacing_rate);
 
@@ -206,7 +193,7 @@ static void pixie_init(struct sock *sk)
     pixie->last_burst = 0;
     pixie->need_retrans = 0;
     pixie->ignore_loss = 0;
-    pixie->samples = kmalloc(U16_MAX * sizeof(struct sample), GFP_ATOMIC);
+    pixie->samples = kmalloc_array(U16_MAX, sizeof(struct sample), GFP_ATOMIC);
     cmpxchg(&sk->sk_pacing_status, SK_PACING_NONE, SK_PACING_NEEDED);
 }
 
@@ -214,8 +201,7 @@ static void pixie_release(struct sock *sk)
 {
     struct pixie *pixie = inet_csk_ca(sk);
 
-    if (pixie->samples)
-        kfree(pixie->samples);
+    kfree(pixie->samples);
 }
 
 static u32 pixie_ssthresh(struct sock *sk)
@@ -225,8 +211,7 @@ static u32 pixie_ssthresh(struct sock *sk)
 
 static u32 pixie_undo_cwnd(struct sock *sk)
 {
-    struct tcp_sock *tp = tcp_sk(sk);
-    return tp->snd_cwnd;
+    return tcp_sk(sk)->snd_cwnd;
 }
 
 static struct tcp_congestion_ops tcp_pixie_cong_ops __read_mostly = {
