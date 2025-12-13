@@ -80,12 +80,11 @@
 #define LZ4HC_HASH_LOG (LZ4HC_DICTIONARY_LOGSIZE - 1)
 #define LZ4HC_HASHTABLESIZE (1 << LZ4HC_HASH_LOG)
 #define LZ4HC_HASH_MASK (LZ4HC_HASHTABLESIZE - 1)
-
 /*-************************************************************************
  *	STREAMING CONSTANTS AND STRUCTURES
  **************************************************************************/
 #define LZ4_STREAM_MINSIZE           \
-	((1UL << LZ4_MEMORY_USAGE) + \
+	((1UL << (LZ4_MEMORY_USAGE)) + \
 	 32) /* static size, for inter-version compatibility */
 
 #define LZ4_STREAMHCSIZE       262192
@@ -162,7 +161,6 @@ typedef union {
 	char minStateSize[LZ4_STREAMDECODE_MINSIZE];
 	LZ4_streamDecode_t_internal internal_donotuse;
 } LZ4_streamDecode_t;
-
 /*-************************************************************************
  *	SIZE OF STATE
  **************************************************************************/
@@ -172,7 +170,6 @@ typedef union {
 /*-************************************************************************
  *	Compression Functions
  **************************************************************************/
-
 /**
  * LZ4_compressBound() - Max. output size in worst case szenarios
  * @isize: Size of the input data
@@ -207,8 +204,8 @@ static inline int LZ4_compressBound(size_t isize)
  * Return: Number of bytes written into buffer 'dest'
  *	(necessarily <= maxOutputSize) or 0 if compression fails
  */
-int LZ4_compress_default(const char *source, char *dest, int inputSize,
-			 int maxOutputSize, void *wrkmem);
+int LZ4_compress_default(const char *src, char *dst, int srcSize,
+				int dstCapacity);
 
 /**
  * LZ4_compress_fast() - As LZ4_compress_default providing an acceleration param
@@ -232,7 +229,7 @@ int LZ4_compress_default(const char *source, char *dest, int inputSize,
  *	(necessarily <= maxOutputSize) or 0 if compression fails
  */
 int LZ4_compress_fast(const char *source, char *dest, int inputSize,
-		      int maxOutputSize, int acceleration, void *wrkmem);
+		      int maxOutputSize, int acceleration);
 
 /**
  * LZ4_compress_destSize() - Compress as much data as possible
@@ -255,8 +252,7 @@ int LZ4_compress_fast(const char *source, char *dest, int inputSize,
  * Return: Number of bytes written into 'dest' (necessarily <= targetDestSize)
  *	or 0 if compression fails
  */
-int LZ4_compress_destSize(const char *source, char *dest, int *sourceSizePtr,
-			  int targetDestSize, void *wrkmem);
+int LZ4_compress_destSize(const char* src, char* dst, int* srcSizePtr, int targetDstSize);
 
 /*-************************************************************************
  *	Decompression Functions
@@ -457,6 +453,40 @@ void LZ4_resetStream(LZ4_stream_t *LZ4_stream);
  */
 int LZ4_loadDict(LZ4_stream_t *streamPtr, const char *dictionary, int dictSize);
 
+/*! LZ4_attach_dictionary() : stable since v1.10.0
+ *
+ *  This allows efficient re-use of a static dictionary multiple times.
+ *
+ *  Rather than re-loading the dictionary buffer into a working context before
+ *  each compression, or copying a pre-loaded dictionary's LZ4_stream_t into a
+ *  working LZ4_stream_t, this function introduces a no-copy setup mechanism,
+ *  in which the working stream references @dictionaryStream in-place.
+ *
+ *  Several assumptions are made about the state of @dictionaryStream.
+ *  Currently, only states which have been prepared by LZ4_loadDict() or
+ *  LZ4_loadDictSlow() should be expected to work.
+ *
+ *  Alternatively, the provided @dictionaryStream may be NULL,
+ *  in which case any existing dictionary stream is unset.
+ *
+ *  If a dictionary is provided, it replaces any pre-existing stream history.
+ *  The dictionary contents are the only history that can be referenced and
+ *  logically immediately precede the data compressed in the first subsequent
+ *  compression call.
+ *
+ *  The dictionary will only remain attached to the working stream through the
+ *  first compression call, at the end of which it is cleared.
+ * @dictionaryStream stream (and source buffer) must remain in-place / accessible / unchanged
+ *  through the completion of the compression session.
+ *
+ *  Note: there is no equivalent LZ4_attach_*() method on the decompression side
+ *  because there is no initialization cost, hence no need to share the cost across multiple sessions.
+ *  To decompress LZ4 blocks using dictionary, attached or not,
+ *  just employ the regular LZ4_setStreamDecode() for streaming,
+ *  or the stateless LZ4_decompress_safe_usingDict() for one-shot decompression.
+ */
+int LZ4_loadDictSlow(LZ4_stream_t* streamPtr, const char* dictionary, int dictSize);
+
 /**
  * LZ4_saveDict() - Save static dictionary from LZ4_stream
  * @streamPtr: pointer to the 'LZ4_stream_t' structure
@@ -474,6 +504,24 @@ int LZ4_loadDict(LZ4_stream_t *streamPtr, const char *dictionary, int dictSize);
  *	or 0 if error.
  */
 int LZ4_saveDict(LZ4_stream_t *streamPtr, char *safeBuffer, int dictSize);
+
+/*! LZ4_compress_fast_extState_fastReset() :
+ *  A variant of LZ4_compress_fast_extState().
+ *
+ *  Using this variant avoids an expensive initialization step.
+ *  It is only safe to call if the state buffer is known to be correctly initialized already
+ *  (see above comment on LZ4_resetStream_fast() for a definition of "correctly initialized").
+ *  From a high level, the difference is that
+ *  this function initializes the provided state with a call to something like LZ4_resetStream_fast()
+ *  while LZ4_compress_fast_extState() starts with a call to LZ4_resetStream().
+ */
+int LZ4_compress_fast_extState_fastReset (void* state, const char* src, char* dst, int srcSize, int dstCapacity, int acceleration);
+
+/*! LZ4_compress_destSize_extState() : introduced in v1.10.0
+ *  Same as LZ4_compress_destSize(), but using an externally allocated state.
+ *  Also: exposes @acceleration
+ */
+int LZ4_compress_destSize_extState(void* state, const char* src, char* dst, int* srcSizePtr, int targetDstSize, int acceleration);
 
 /**
  * LZ4_compress_fast_continue() - Compress 'src' using data from previously

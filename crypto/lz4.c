@@ -67,7 +67,7 @@ static int __lz4_compress_crypto(const u8 *src, unsigned int slen,
 				 u8 *dst, unsigned int *dlen, void *ctx)
 {
 	int out_len = LZ4_compress_default(src, dst,
-		slen, *dlen, ctx);
+		slen, *dlen);
 
 	if (!out_len)
 		return -EINVAL;
