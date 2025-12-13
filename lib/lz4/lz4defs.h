@@ -39,7 +39,6 @@
 #include <linux/string.h> /* memset, memcpy */
 
 #define FORCE_INLINE __always_inline
-
 /*-************************************
  *	Basic Types
  **************************************/
@@ -51,7 +50,6 @@ typedef uint32_t U32;
 typedef int32_t S32;
 typedef uint64_t U64;
 typedef uintptr_t uptrval;
-
 /*-************************************
  *	Architecture specifics
  **************************************/
@@ -110,7 +108,6 @@ typedef size_t reg_t; /* 32-bits in x32 mode */
 #define ML_MASK ((1U << ML_BITS) - 1)
 #define RUN_BITS (8 - ML_BITS)
 #define RUN_MASK ((1U << RUN_BITS) - 1)
-
 /*-************************************
  *	Reading and writing into memory
  **************************************/

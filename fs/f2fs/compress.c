@@ -298,7 +298,7 @@ static int lz4hc_compress_pages(struct compress_ctx *cc)
 					cc->clen, level, cc->private);
 	else
 		len = LZ4_compress_default(cc->rbuf, cc->cbuf->cdata, cc->rlen,
-						cc->clen, cc->private);
+						cc->clen);
 	if (!len)
 		return -EAGAIN;
 
@@ -317,7 +317,7 @@ static int lz4_compress_pages(struct compress_ctx *cc)
 #endif
 
 		len = LZ4_compress_default(cc->rbuf, cc->cbuf->cdata, cc->rlen,
-						cc->clen, cc->private);
+						cc->clen);
 		if (!len)
 			return -EAGAIN;
 
@@ -329,7 +329,7 @@ static int lz4_compress_pages(struct compress_ctx *cc)
 		void *dst = (void *)cc->cbuf + cc->cofs;
 		int dlen;
 
-		dlen = LZ4_compress_destSize(src, dst, &slen, PAGE_SIZE, cc->private);
+		dlen = LZ4_compress_destSize(src, dst, &slen, PAGE_SIZE);
 		if (!dlen)
 			return -EAGAIN;
 
