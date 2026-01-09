@@ -89,64 +89,14 @@ struct scan_control {
 	/* This context's GFP mask */
 	gfp_t gfp_mask;
 
-	/* The anonymous pages on the current node are below vm.anon_min_kbytes */
+	/* --- le9 补丁变量开始 --- */
 	unsigned int anon_below_min:1;
-
-	/* The clean file pages on the current node are below vm.clean_low_kbytes */
 	unsigned int clean_below_low:1;
-
-	/* The clean file pages on the current node are below vm.clean_min_kbytes */
 	unsigned int clean_below_min:1;
+	/* --- le9 补丁变量结束 --- */
 
 	/* Allocation order */
 	int order;
-
-	/*
-	 * Nodemask of nodes allowed by the caller. If NULL, all nodes
-	 * are scanned.
-	 */
-	nodemask_t	*nodemask;
-
-	/*
-	 * The memory cgroup that hit its limit and as a result is the
-	 * primary target of this reclaim invocation.
-	 */
-	struct mem_cgroup *target_mem_cgroup;
-
-	/* Writepage batching in laptop mode; RECLAIM_WRITE */
-	unsigned int may_writepage:1;
-
-	/* Can mapped pages be reclaimed? */
-	unsigned int may_unmap:1;
-
-	/* Can pages be swapped as part of reclaim? */
-	unsigned int may_swap:1;
-
-	/* e.g. boosted watermark reclaim leaves slabs alone */
-	unsigned int may_shrinkslab:1;
-
-	/*
-	 * Cgroups are not reclaimed below their configured memory.low,
-	 * unless we threaten to OOM. If any cgroups are skipped due to
-	 * memory.low and nothing was reclaimed, go back for memory.low.
-	 */
-	unsigned int memcg_low_reclaim:1;
-	unsigned int memcg_low_skipped:1;
-
-	unsigned int hibernation_mode:1;
-
-	/* One of the zones is ready for compaction */
-	unsigned int compaction_ready:1;
-
-#ifdef CONFIG_LRU_GEN
-	/* help make better choices when multiple memcgs are available */
-	unsigned int memcgs_need_aging:1;
-	unsigned int memcgs_need_swapping:1;
-	unsigned int memcgs_avoid_swapping:1;
-#endif
-
-	/* Allocation order */
-	s8 order;
 
 	/* Scan (total_size >> priority) pages at once */
 	s8 priority;
@@ -154,15 +104,19 @@ struct scan_control {
 	/* The highest zone to isolate pages for reclaim from */
 	s8 reclaim_idx;
 
-	/* This context's GFP mask */
-	gfp_t gfp_mask;
+	/* Nodemask of nodes allowed by the caller */
+	nodemask_t	*nodemask;
 
-	/* Incremented by the number of inactive pages that were scanned */
-	unsigned long nr_scanned;
+	/* The memory cgroup that hit its limit */
+	struct mem_cgroup *target_mem_cgroup;
 
-	/* Number of pages freed so far during a call to shrink_zones() */
-	unsigned long nr_reclaimed;
+	/*
+	 * The number of pages from vma which have been freed or set to be freed
+	 * without reclaim.
+	 */
+	struct vm_area_struct *target_vma;
 
+	/* 刚才报错最多的 nr 结构体就在这里 */
 	struct {
 		unsigned int dirty;
 		unsigned int unqueued_dirty;
@@ -172,12 +126,30 @@ struct scan_control {
 		unsigned int file_taken;
 		unsigned int taken;
 	} nr;
-	/*
-	 * Reclaim pages from a vma. If the page is shared by other tasks
-	 * it is zapped from a vma without reclaim so it ends up remaining
-	 * on memory until last task zap it.
-	 */
-	struct vm_area_struct *target_vma;
+
+	/* Incremented by the number of inactive pages that were scanned */
+	unsigned long nr_scanned;
+
+	/* Number of pages freed so far during a call to shrink_zones() */
+	unsigned long nr_reclaimed;
+
+	unsigned int may_writepage:1;
+	unsigned int may_unmap:1;
+	unsigned int may_swap:1;
+	unsigned int may_shrinkslab:1;
+	unsigned int hibernation_mode:1;
+	unsigned int compaction_ready:1;
+#ifdef CONFIG_MEMCG
+	unsigned int memcg_low_reclaim:1;
+	unsigned int memcg_low_skipped:1;
+#endif
+
+#ifdef CONFIG_LRU_GEN
+	/* help make better choices when multiple memcgs are available */
+	unsigned int memcgs_need_aging:1;
+	unsigned int memcgs_need_swapping:1;
+	unsigned int memcgs_avoid_swapping:1;
+#endif
 
 #if defined(OPLUS_FEATURE_PROCESS_RECLAIM) && defined(CONFIG_PROCESS_RECLAIM_ENHANCE)
 	struct mm_walk *walk;
@@ -2731,8 +2703,7 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 	prepare_workingset_protection(pgdat, sc);
 
 	/* If we have no swap space, do not bother scanning anon pages. */
-	if (!sc->may_swap || mem_cgroup_get_nr_swap_pages(memcg) <= 0) {
-#endif /*OPLUS_FEATURE_ZRAM_OPT*/
+	if (!sc->may_swap || mem_cgroup_get_nr_swap_pages(memcg) <= 0) { /*OPLUS_FEATURE_ZRAM_OPT*/
 		scan_balance = SCAN_FILE;
 		goto out;
 	}
