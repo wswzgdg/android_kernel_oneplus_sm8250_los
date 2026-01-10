@@ -255,9 +255,6 @@ struct tcp_sock {
 	u32	recvmsg_inq : 1,/* Indicate # of bytes in queue upon recvmsg */
 		fast_ack_mode:1;/* ack ASAP if >1 rcv_mss received? */
 
-	u64	tcp_wstamp_ns;	/* departure time for next sent data packet */
-	u64	tcp_clock_cache; /* cache last tcp_clock_ns() (see tcp_mstamp_refresh()) */
-
 /* RTT measurement */
 	u64	tcp_clock_cache; /* cache last tcp_clock_ns() (see tcp_mstamp_refresh()) */
 	u64	tcp_mstamp;	/* most recent packet received/sent */

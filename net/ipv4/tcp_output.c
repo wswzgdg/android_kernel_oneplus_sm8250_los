@@ -81,6 +81,8 @@ static void tcp_event_new_data_sent(struct sock *sk, struct sk_buff *skb)
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
 	unsigned int prior_packets = tp->packets_out;
+	u32 rate;
+	u64 prior_wstamp;
 
 	tp->snd_nxt = TCP_SKB_CB(skb)->end_seq;
 
@@ -91,14 +93,33 @@ static void tcp_event_new_data_sent(struct sock *sk, struct sk_buff *skb)
 		tp->highest_sack = skb;
 
 	tp->packets_out += tcp_skb_pcount(skb);
+
+	rate = sk->sk_pacing_rate;
+	if (rate != ~0UL && rate && tp->data_segs_out >= 10) {
+		prior_wstamp = tp->tcp_wstamp_ns;
+		u64 len_ns = (u64)skb->len << 32;
+		do_div(len_ns, rate);
+
+		if (prior_wstamp && tp->tcp_wstamp_ns < prior_wstamp) {
+			u64 credit = prior_wstamp - tp->tcp_wstamp_ns;
+			if (len_ns > credit)
+				len_ns -= credit;
+			else
+				len_ns = 0;
+		}
+		tp->tcp_wstamp_ns = prior_wstamp + len_ns;
+	}
+
 	if (!prior_packets || icsk->icsk_pending == ICSK_TIME_LOSS_PROBE)
 		tcp_rearm_rto(sk);
 
 	NET_ADD_STATS(sock_net(sk), LINUX_MIB_TCPORIGDATASENT,
-		      tcp_skb_pcount(skb));
+			  tcp_skb_pcount(skb));
+	
+	list_move_tail(&skb->tcp_tsorted_anchor, &tp->tsorted_sent_queue);
+
 	tcp_check_space(sk);
 }
-
 /* SND.NXT, if window was not shrunk or the amount of shrunk was less than one
  * window scaling factor due to loss of precision.
  * If window has been shrunk, what should we make? It is not clear at all.
@@ -1152,28 +1173,31 @@ enum hrtimer_restart tcp_pace_kick(struct hrtimer *timer)
 static void tcp_update_skb_after_send(struct sock *sk, struct sk_buff *skb,
 				      u64 prior_wstamp)
 {
+	struct tcp_sock *tp = tcp_sk(sk);
 	u64 len_ns;
 	unsigned long rate;
 
 	if (!tcp_needs_internal_pacing(sk))
-		return;
+		goto move_tail;
+
 	rate = sk->sk_pacing_rate;
 	if (!rate || rate == ~0UL)
-		return;
+		goto move_tail;
 
-		/* Original sch_fq does not pace first 10 MSS
-		 * Note that tp->data_segs_out overflows after 2^32 packets,
-		 * this is a minor annoyance.
-		 */
-		if (rate != ~0UL && rate && tp->data_segs_out >= 10) {
-			u64 len_ns = div64_ul((u64)skb->len * NSEC_PER_SEC, rate);
-			u64 credit = tp->tcp_wstamp_ns - prior_wstamp;
+	/* Original sch_fq does not pace first 10 MSS
+	 * Note that tp->data_segs_out overflows after 2^32 packets,
+	 * this is a minor annoyance.
+	 */
+	if (tp->data_segs_out >= 10) {
+		len_ns = div64_ul((u64)skb->len * NSEC_PER_SEC, rate);
+		u64 credit = tp->tcp_wstamp_ns - prior_wstamp;
 
-			/* take into account OS jitter */
-			len_ns -= min_t(u64, len_ns / 2, credit);
-			tp->tcp_wstamp_ns += len_ns;
-		}
+		/* take into account OS jitter */
+		len_ns -= min_t(u64, len_ns / 2, credit);
+		tp->tcp_wstamp_ns += len_ns;
 	}
+
+move_tail:
 	list_move_tail(&skb->tcp_tsorted_anchor, &tp->tsorted_sent_queue);
 }
 

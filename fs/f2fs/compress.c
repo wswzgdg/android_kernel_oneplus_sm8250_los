@@ -2407,7 +2407,7 @@ static void __f2fs_decompress_end_io(struct decompress_io_ctx *dic, bool failed)
 		unlock_page(rpage);
 	}
 
-	f2fs_put_dic(dic, in_task);
+	f2fs_put_dic(dic);
 }
 
 static void f2fs_verify_cluster(struct work_struct *work)
@@ -2424,28 +2424,28 @@ static void f2fs_verify_cluster(struct work_struct *work)
 			SetPageError(rpage);
 	}
 
-	__f2fs_decompress_end_io(dic, false, true);
+	__f2fs_decompress_end_io(dic, false);
 }
 
 /*
  * This is called when a compressed cluster has been decompressed
  * (or failed to be read and/or decompressed).
  */
-void f2fs_decompress_end_io(struct decompress_io_ctx *dic, bool failed,
-				bool in_task)
+void f2fs_decompress_end_io(struct decompress_io_ctx *dic, bool failed)
 {
-	if (!failed && dic->need_verity) {
-		/*
-		 * Note that to avoid deadlocks, the verity work can't be done
-		 * on the decompression workqueue.  This is because verifying
-		 * the data pages can involve reading metadata pages from the
-		 * file, and these metadata pages may be compressed.
-		 */
-		INIT_WORK(&dic->verity_work, f2fs_verify_cluster);
-		fsverity_enqueue_verify_work(&dic->verity_work);
-	} else {
-		__f2fs_decompress_end_io(dic, failed, in_task);
-	}
+    
+    if (!failed && dic->need_verity) {
+        /*
+         * Note that to avoid deadlocks, the verity work can't be done
+         * on the decompression workqueue.  This is because verifying
+         * the data pages can involve reading metadata pages from the
+         * file, and these metadata pages may be compressed.
+         */
+        INIT_WORK(&dic->verity_work, f2fs_verify_cluster);
+        fsverity_enqueue_verify_work(&dic->verity_work);
+    } else {
+        __f2fs_decompress_end_io(dic, failed);
+    }
 }
 
 /*
@@ -2453,12 +2453,12 @@ void f2fs_decompress_end_io(struct decompress_io_ctx *dic, bool failed,
  *
  * This is called when the page is no longer needed and can be freed.
  */
-void f2fs_put_page_dic(struct page *page, bool in_task)
+void f2fs_put_page_dic(struct page *page)
 {
-	struct decompress_io_ctx *dic =
-			(struct decompress_io_ctx *)page_private(page);
+    struct decompress_io_ctx *dic =
+            (struct decompress_io_ctx *)page_private(page);
 
-	f2fs_put_dic(dic, in_task);
+    f2fs_put_dic(dic);
 }
 
 /*
