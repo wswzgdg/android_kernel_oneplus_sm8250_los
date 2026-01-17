@@ -49,9 +49,10 @@ echo
 echo "Kernel is going to be built using $KERNEL_DEFCONFIG"
 echo
 
-make CC=clang AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM=1 LLVM_IAS=1 O=out $KERNEL_DEFCONFIG
+# 修改点：CC 添加 ccache，添加 KCFLAGS=-O2
+make CC="ccache clang" AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM=1 LLVM_IAS=1 KCFLAGS=-O2 O=out $KERNEL_DEFCONFIG
 
-make CC=clang AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM=1 LLVM_IAS=1 O=out -j$(nproc --all)
+make CC="ccache clang" AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM=1 LLVM_IAS=1 KCFLAGS=-O2 O=out -j$(nproc --all)
 
 echo "Build complete"
 
