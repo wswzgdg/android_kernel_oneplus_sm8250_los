@@ -350,7 +350,7 @@
 	};
 
 	chosen {
-		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kasan_multi_shot";
+		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kasan_multi_shot cgroup_disable=pressure";
 	};
 
 	firmware: firmware {
@@ -639,7 +639,7 @@
 			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
 			reusable;
 			alignment = <0x0 0x400000>;
-			size = <0x0 0x2000000>;
+			size = <0x0 0x8000000>;
 			linux,cma-default;
 		};
 
