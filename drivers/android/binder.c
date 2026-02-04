@@ -3382,6 +3382,11 @@ static int binder_proc_transaction(struct binder_transaction *t,
 	bool pending_async = false;
 	struct binder_transaction *t_outdated = NULL;
 
+	#if defined(OPLUS_FEATURE_SCHED_ASSIST)
+	struct task_struct *grp_leader = NULL;
+	struct task_struct *curr = current;
+    #endif
+
 	BUG_ON(!node);
 	binder_node_lock(node);
 	node_prio.prio = node->min_priority;
@@ -3421,21 +3426,25 @@ static int binder_proc_transaction(struct binder_transaction *t,
 #endif
 
 #if defined(CONFIG_OPLUS_FEATURE_BINDER_STATS_ENABLE)
+/*
 	if (NULL != node && NULL != proc->tsk) {
 		binder_notify_obj.caller_task = current;
 		strncpy(binder_notify_obj.service_name, node->service_name, OPLUS_MAX_SERVICE_NAME_LEN);
 		binder_notify_obj.service_name[OPLUS_MAX_SERVICE_NAME_LEN-1] = '\0';
 		binder_notify_obj.pending_async = pending_async;
 	}
+*/
 #endif
 
 	if (thread) {
+/*
 #if defined(CONFIG_OPLUS_FEATURE_BINDER_STATS_ENABLE)
-		if (NULL != thread && NULL != thread->task) {
-			binder_notify_obj.binder_task = thread->task;
-			call_binderevent_notifiers(0, (void *)&binder_notify_obj);
-		}
+        if (NULL != thread && NULL != thread->task) {
+            binder_notify_obj.binder_task = thread->task;
+            call_binderevent_notifiers(0, (void *)&binder_notify_obj);
+        }
 #endif
+*/
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 		binder_transaction_priority(thread, thread->task, t, node_prio,
 					    node->inherit_rt);
@@ -3451,12 +3460,14 @@ static int binder_proc_transaction(struct binder_transaction *t,
 		}
 #endif /* OPLUS_FEATURE_SCHED_ASSIST */
 	} else if (!pending_async) {
+/*
 #if defined(CONFIG_OPLUS_FEATURE_BINDER_STATS_ENABLE)
-		if (NULL != proc && NULL != proc->tsk) {
-			binder_notify_obj.binder_task = proc->tsk;
-			call_binderevent_notifiers(0, (void *)&binder_notify_obj);
-		}
+        if (NULL != proc && NULL != proc->tsk) {
+            binder_notify_obj.binder_task = proc->tsk;
+            call_binderevent_notifiers(0, (void *)&binder_notify_obj);
+        }
 #endif
+*/
 #ifdef CONFIG_OPLUS_BINDER_STRATEGY
 		obwork_restrict(proc, t);
 #else
@@ -3485,7 +3496,7 @@ static int binder_proc_transaction(struct binder_transaction *t,
 #if defined(OPLUS_FEATURE_SCHED_ASSIST)
 			if (thread && thread->task) {
 				grp_leader = thread->task->group_leader;
-				if (grp_leader && is_sf(curr) && test_task_ux(thread->task->group_leader) && oneway) {
+				if (grp_leader && is_binder_proc_sf(proc) && test_task_ux(thread->task->group_leader) && oneway) {
 					set_once_ux(thread->task);
 				}
                         }
