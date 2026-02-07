@@ -841,13 +841,20 @@ void binder_alloc_deferred_release(struct binder_alloc *alloc)
 
 	buffers = 0;
 	mutex_lock(&alloc->mutex);
-	BUG_ON(alloc->vma);
+	
+	if (alloc->vma) {
+		pr_err("binder_alloc: %d: releasing with vma still active\n", alloc->pid);
+		alloc->vma = NULL;
+	}
 
 	while ((n = rb_first(&alloc->allocated_buffers))) {
 		buffer = rb_entry(n, struct binder_buffer, rb_node);
 
-		/* Transaction should already have been freed */
-		BUG_ON(buffer->transaction);
+		if (buffer->transaction) {
+			pr_err("binder_alloc: %d: buffer %pK has active transaction!\n",
+				alloc->pid, buffer);
+			buffer->transaction = NULL;
+		}
 
 		if (buffer->clear_on_free) {
 			binder_alloc_clear_buf(alloc, buffer);
@@ -882,21 +889,24 @@ void binder_alloc_deferred_release(struct binder_alloc *alloc)
 					      &alloc->pages[i].lru);
 			page_addr = alloc->buffer + i * PAGE_SIZE;
 			binder_alloc_debug(BINDER_DEBUG_BUFFER_ALLOC,
-				     "%s: %d: page %d at %pK %s\n",
-				     __func__, alloc->pid, i, page_addr,
-				     on_lru ? "on lru" : "active");
+					   "%s: %d: page %d at %pK %s\n",
+					   __func__, alloc->pid, i, page_addr,
+					   on_lru ? "on lru" : "active");
+			
 			__free_page(alloc->pages[i].page_ptr);
+			alloc->pages[i].page_ptr = NULL;
 			page_count++;
 		}
 		kfree(alloc->pages);
+		alloc->pages = NULL;
 	}
 	mutex_unlock(&alloc->mutex);
 	if (alloc->vma_vm_mm)
 		mmdrop(alloc->vma_vm_mm);
 
 	binder_alloc_debug(BINDER_DEBUG_OPEN_CLOSE,
-		     "%s: %d buffers %d, pages %d\n",
-		     __func__, alloc->pid, buffers, page_count);
+			   "%s: %d buffers %d, pages %d\n",
+			   __func__, alloc->pid, buffers, page_count);
 }
 
 static void print_binder_buffer(struct seq_file *m, const char *prefix,

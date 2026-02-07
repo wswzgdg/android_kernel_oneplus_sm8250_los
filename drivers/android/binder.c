@@ -5491,6 +5491,11 @@ static int binder_thread_release(struct binder_proc *proc,
 	}
 	thread->is_dead = true;
 
+	if (thread->looper & BINDER_LOOPER_STATE_WAITING) {
+        thread->looper_need_return = true;
+        wake_up_interruptible(&thread->wait);
+    }
+
 	while (t) {
 		last_t = t;
 		active_transactions++;
@@ -5541,6 +5546,11 @@ static int binder_thread_release(struct binder_proc *proc,
 	if (send_reply)
 		binder_send_failed_reply(send_reply, BR_DEAD_REPLY);
 	binder_release_work(proc, &thread->todo);
+	#ifdef CONFIG_OPLUS_BINDER_STRATEGY
+    if (proc == ob_target.ob_proc) {
+        binder_release_work(proc, &ob_target.ob_list);
+    }
+	#endif
 	binder_thread_dec_tmpref(thread);
 	return active_transactions;
 }
