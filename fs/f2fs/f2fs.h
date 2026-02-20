@@ -31,6 +31,9 @@
 #include <linux/iomonitor/iomonitor.h>
 #endif /*OPLUS_FEATURE_IOMONITOR*/
 
+#define F2FS_MOUNT_ATGC			0x00000200
+#define F2FS_MOUNT_GC_MERGE		0x00000400
+
 #ifdef CONFIG_F2FS_CHECK_FS
 #define f2fs_bug_on(sbi, condition)	BUG_ON(condition)
 #else

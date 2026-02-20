@@ -88,6 +88,10 @@ struct zram_table_entry {
 #ifdef CONFIG_ZRAM_MEMORY_TRACKING
 	ktime_t ac_time;
 #endif
+
+#ifdef CONFIG_ZRAM_WRITEBACK
+	unsigned long blk_idx;
+#endif
 };
 
 struct zram_stats {
@@ -122,63 +126,45 @@ struct zram_hash {
 };
 
 struct zram {
-	struct zram_table_entry *table;
-	struct zs_pool *mem_pool;
-	struct zcomp *comp;
-	struct gendisk *disk;
-	struct zram_hash *hash;
-	size_t hash_size;
-	/* Prevent concurrent execution of device init */
-	struct rw_semaphore init_lock;
-	/*
-	 * the number of pages zram can consume for storing compressed data
-	 */
-	unsigned long limit_pages;
+    struct zram_table_entry *table;
+    struct zs_pool *mem_pool;
+    struct zcomp *comp;
+    struct gendisk *disk;
+    struct zram_hash *hash;
+    size_t hash_size;
+    struct rw_semaphore init_lock;
+    unsigned long limit_pages;
 
-	struct zram_stats stats;
-	/*
-	 * This is the limit on amount of *uncompressed* worth of data
-	 * we can store in a disk.
-	 */
-	u64 disksize;	/* bytes */
-	char compressor[CRYPTO_MAX_ALG_NAME];
-	/*
-	 * zram is claimed so open request will be failed
-	 */
-	bool claim; /* Protected by bdev->bd_mutex */
-	bool use_dedup;
-	struct file *backing_dev;
-#ifdef CONFIG_ZRAM_WRITEBACK
-	spinlock_t wb_limit_lock;
-	bool wb_limit_enable;
-	u64 bd_wb_limit;
-	struct block_device *bdev;
-	unsigned int old_block_size;
-	unsigned long *bitmap;
-	unsigned long nr_pages;
-#endif
-#ifdef CONFIG_ZRAM_MEMORY_TRACKING
-	struct dentry *debugfs_dir;
-#endif
+    struct zram_stats stats;
+    u64 disksize;   /* bytes */
+    char compressor[CRYPTO_MAX_ALG_NAME];
+    bool claim; 
+    bool use_dedup;
+    struct file *backing_dev;
+
 #if (defined CONFIG_ZRAM_WRITEBACK) || (defined CONFIG_HYBRIDSWAP_CORE)
-	struct block_device *bdev;
-	unsigned int old_block_size;
-	unsigned long nr_pages;
-	unsigned long increase_nr_pages;
+    struct block_device *bdev;
+    unsigned int old_block_size;
+    unsigned long nr_pages;
 #endif
+
+#ifdef CONFIG_ZRAM_WRITEBACK
+    spinlock_t wb_limit_lock;
+    bool wb_limit_enable;
+    u64 bd_wb_limit;
+    unsigned long *bitmap;
+#endif
+
 #ifdef CONFIG_HYBRIDSWAP_CORE
-	struct hybridswap_area *area;
+    struct hybridswap_area *area;
+    unsigned long increase_nr_pages;
+    struct hyb_info *infos;
+#endif
+
+#ifdef CONFIG_ZRAM_MEMORY_TRACKING
+    struct dentry *debugfs_dir;
 #endif
 };
-
-static inline bool zram_dedup_enabled(struct zram *zram)
-{
-#ifdef CONFIG_ZRAM_DEDUP
-	return zram->use_dedup;
-#else
-	return false;
-#endif
-}
 
 void zram_entry_free(struct zram *zram, struct zram_entry *entry);
 
