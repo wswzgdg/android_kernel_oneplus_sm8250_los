@@ -38,6 +38,14 @@ extern bool is_webview(struct task_struct *p);
 
 #define CREATE_TRACE_POINTS
 #include <sched_assist_trace.h>
+#include <linux/cgroup-defs.h>
+#include <linux/cgroup.h>
+
+#ifdef CONFIG_UCLAMP_TASK
+#define ASSIST_CGRP_ID cpu_cgrp_id
+#else
+#define ASSIST_CGRP_ID schedtune_cgrp_id
+#endif
 
 #define MS_TO_NS (1000000)
 #define MAX_INHERIT_GRAN ((u64)(64 * MS_TO_NS))
@@ -325,7 +333,11 @@ static inline int task_cgroup_id(struct task_struct *task)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	struct cgroup_subsys_state *css = task_css(task, cpu_cgrp_id);
 #else
-	struct cgroup_subsys_state *css = task_css(task, schedtune_cgrp_id);
+	#ifdef CONFIG_UCLAMP_TASK
+    struct cgroup_subsys_state *css = task_css(task, cpu_cgrp_id);
+#else
+    struct cgroup_subsys_state *css = task_css(task, ASSIST_CGRP_ID);
+#endif
 #endif
 
 	return css ? css->id : -1;
@@ -1723,9 +1735,13 @@ int get_grp(struct task_struct *p)
 		return false;
 	rcu_read_lock();
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
-	css = task_css(p, cpu_cgrp_id);
+	#ifdef CONFIG_UCLAMP_TASK
+    css = task_css(p, cpu_cgrp_id);
 #else
-	css = task_css(p, schedtune_cgrp_id);
+    css = task_css(p, ASSIST_CGRP_ID);
+#endif
+#else
+	css = task_css(p, ASSIST_CGRP_ID);
 #endif
 	if (!css) {
 		rcu_read_unlock();
@@ -2417,7 +2433,7 @@ bool cgroup_check_set_sched_assist_boost(struct task_struct *p)
 int get_st_group_id(struct task_struct *task)
 {
 #if IS_ENABLED(CONFIG_SCHED_TUNE)
-	const int subsys_id = schedtune_cgrp_id;
+	const int subsys_id = ASSIST_CGRP_ID;
 	struct cgroup *grp;
 
 	rcu_read_lock();

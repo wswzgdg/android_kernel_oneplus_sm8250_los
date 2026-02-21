@@ -29,6 +29,8 @@
 
 #include "walt.h"
 
+#include <linux/reciprocal_div.h>
+
 #ifdef OPLUS_FEATURE_SCHED_ASSIST
 #include <linux/sched_assist/sched_assist_common.h>
 #include <linux/cpufreq.h>

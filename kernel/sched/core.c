@@ -50,6 +50,10 @@
 #ifdef CONFIG_LOCKING_PROTECT
 #include <linux/sched_assist/sched_assist_locking.h>
 #endif
+
+#include <linux/jump_label.h>
+DEFINE_STATIC_KEY_FALSE(sched_uclamp_used);
+
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 #ifdef CONFIG_OPLUS_FEATURE_FRAME_BOOST
 #include "../tuning/frame_group.h"
@@ -796,25 +800,9 @@ unsigned int sysctl_sched_uclamp_util_min_rt_default = 0;
 /* All clamps are required to be less or equal than these values */
 static struct uclamp_se uclamp_default[UCLAMP_CNT];
 
-/*
- * This static key is used to reduce the uclamp overhead in the fast path. It
- * primarily disables the call to uclamp_rq_{inc, dec}() in
- * enqueue/dequeue_task().
- *
- * This allows users to continue to enable uclamp in their kernel config with
- * minimum uclamp overhead in the fast path.
- *
- * As soon as userspace modifies any of the uclamp knobs, the static key is
- * enabled, since we have an actual users that make use of uclamp
- * functionality.
- *
- * The knobs that would enable this static key are:
- *
- *   * A task modifying its uclamp value with sched_setattr().
- *   * An admin modifying the sysctl_sched_uclamp_{min, max} via procfs.
- *   * An admin modifying the cgroup cpu.uclamp.{min, max}
- */
+#ifdef CONFIG_JUMP_LABEL
 DEFINE_STATIC_KEY_FALSE(sched_uclamp_used);
+#endif
 
 /* Integer rounded range for each bucket */
 #define UCLAMP_BUCKET_DELTA DIV_ROUND_CLOSEST(SCHED_CAPACITY_SCALE, UCLAMP_BUCKETS)
@@ -1367,18 +1355,18 @@ bool uclamp_latency_sensitive(struct task_struct *p)
 }
 #endif /* CONFIG_SMP */
 
-static void __init init_uclamp_rq(struct rq *rq)
+static void init_uclamp_rq(struct rq *rq)
 {
 	enum uclamp_id clamp_id;
-	struct uclamp_rq *uc_rq = rq->uclamp;
+	struct uclamp_rq *uc_rq;
 
 	for_each_clamp_id(clamp_id) {
-		uc_rq[clamp_id] = (struct uclamp_rq) {
-			.value = uclamp_none(clamp_id)
-		};
-	}
+		uc_rq = &rq->uclamp[clamp_id];
 
-	rq->uclamp_flags = UCLAMP_FLAG_IDLE;
+		uc_rq->value = uclamp_none(clamp_id);
+
+		memset(uc_rq->bucket, 0, sizeof(uc_rq->bucket));
+	}
 }
 
 static void __init init_uclamp(void)
@@ -8195,10 +8183,6 @@ static int cpu_cgroup_css_online(struct cgroup_subsys_state *css)
 	mutex_lock(&uclamp_mutex);
 	rcu_read_lock();
 	cpu_util_update_eff(css);
-<<<<<<< HEAD
-	rcu_read_unlock();
-	mutex_unlock(&uclamp_mutex);
-=======
 
 	rcu_read_unlock();
 	mutex_unlock(&uclamp_mutex);
@@ -8206,7 +8190,6 @@ static int cpu_cgroup_css_online(struct cgroup_subsys_state *css)
 
 #ifdef CONFIG_UCLAMP_ASSIST
 	uclamp_set(css);
->>>>>>> 3ffbd30ce167 (sched/core: Introduce Uclamp Assist)
 #endif
 
 	return 0;

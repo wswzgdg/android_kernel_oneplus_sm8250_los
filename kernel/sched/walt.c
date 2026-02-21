@@ -33,6 +33,38 @@ const char *migrate_type_names[] = {"GROUP_TO_RQ", "RQ_TO_GROUP",
 
 #define EARLY_DETECTION_DURATION 9500000
 
+#ifdef CONFIG_UCLAMP_TASK
+extern bool uclamp_ed_task_filter(struct task_struct *p);
+extern bool uclamp_top_task_filter(struct task_struct *p);
+extern u64 uclamp_discount_wait_time(struct task_struct *p);
+#else
+static inline bool uclamp_ed_task_filter(struct task_struct *p) { return false; }
+static inline bool uclamp_top_task_filter(struct task_struct *p) { return false; }
+static inline u64 uclamp_discount_wait_time(struct task_struct *p) { return 0; }
+#endif
+
+#ifdef CONFIG_UCLAMP_TASK
+bool uclamp_ed_task_filter(struct task_struct *p)
+{
+	return false;
+}
+
+bool uclamp_top_task_filter(struct task_struct *p)
+{
+	return false;
+}
+
+u64 uclamp_discount_wait_time(struct task_struct *p)
+{
+	return 0;
+}
+#endif
+
+bool uclamp_is_used(void)
+{
+    return true;
+}
+
 static ktime_t ktime_last;
 static bool sched_ktime_suspended;
 static struct cpu_cycle_counter_cb cpu_cycle_counter_cb;

@@ -98,6 +98,15 @@
 #include <linux/sched_info/osi_tasktrack.h>
 #endif
 
+#include <linux/cgroup.h>
+#include <linux/cgroup-defs.h>
+
+#ifdef CONFIG_UCLAMP_TASK
+#define BINDER_CGRP_ID cpu_cgrp_id
+#else
+#define BINDER_CGRP_ID schedtune_cgrp_id
+#endif
+
 static HLIST_HEAD(binder_deferred_list);
 static DEFINE_MUTEX(binder_deferred_lock);
 
@@ -1170,8 +1179,12 @@ void ob_sysctrace_c(struct binder_proc *proc, struct binder_thread *thread)
 
 static int get_task_cgroup_id(struct task_struct *task)
 {
+	#ifdef CONFIG_UCLAMP_TASK
+    struct cgroup_subsys_state *css = task_css(task, cpu_cgrp_id);
+#else
     struct cgroup_subsys_state *css = task_css(task, schedtune_cgrp_id);
-    return css ? css->id : -1;
+#endif
+		return css ? css->id : -1;
 }
 
 static bool test_task_bg(struct task_struct *task)
