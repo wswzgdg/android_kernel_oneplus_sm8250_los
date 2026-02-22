@@ -40,6 +40,10 @@ static unsigned int default_above_hispeed_delay[] = {
 static unsigned int default_target_loads[] = { DEFAULT_TARGET_LOAD };
 #endif
 
+#ifndef CONFIG_UCLAMP_TASK
+static inline bool uclamp_rq_is_capped(struct rq *rq) { return false; }
+#endif
+
 struct sugov_tunables {
 	struct gov_attr_set	attr_set;
 	unsigned int		up_rate_limit_us;
