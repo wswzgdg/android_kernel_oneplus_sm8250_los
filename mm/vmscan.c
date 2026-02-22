@@ -82,6 +82,10 @@
 #include "ux_page_pool.h"
 #endif /* OPLUS_UXMEM_OPT */
 
+#ifdef CONFIG_OPLUS_FEATURE_ZRAM_OPT
+extern int tune_dynamic_swappines(void); 
+#endif
+
 struct scan_control {
 	/* How many pages shrink_list() should reclaim */
 	unsigned long nr_to_reclaim;
@@ -2641,13 +2645,20 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 	int swappiness = mem_cgroup_swappiness(memcg);
 	struct zone_reclaim_stat *reclaim_stat = &lruvec->reclaim_stat;
 	u64 fraction[ANON_AND_FILE];
-	u64 denominator = 0;	/* gcc */
+	u64 denominator = 0;
 	struct pglist_data *pgdat = lruvec_pgdat(lruvec);
 	unsigned long anon_prio, file_prio;
 	enum scan_balance scan_balance;
 	unsigned long anon, file;
 	unsigned long ap, fp;
 	enum lru_list lru;
+	unsigned long totalswap = total_swap_pages;
+
+#if defined(OPLUS_FEATURE_ZRAM_OPT)
+	extern int tune_dynamic_swappines(void);
+	extern int g_direct_swappiness;
+#endif
+
 #ifndef CONFIG_BALANCE_ANON_FILE_RECLAIM
 	struct zone *zone;
 	unsigned long free_pages_threshold = 0;
@@ -2655,82 +2666,46 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 	bool balance_anon_file_reclaim = true;
 #endif
 
-	unsigned long totalswap = total_swap_pages;
 #if defined(CONFIG_NANDSWAP)
 	if (nandswap_si)
 		totalswap -= nandswap_si->pages;
 #endif
 
-	/* use vm_swappiness defaultly */
 	swappiness = vm_swappiness;
-#if defined(OPLUS_FEATURE_ZRAM_OPT) && defined(CONFIG_OPLUS_ZRAM_OPT)
-	if (!current_is_kswapd()) {
-#ifdef CONFIG_HYBRIDSWAP_SWAPD
-		if (strncmp(current->comm, "hybridswapd:", sizeof("hybridswapd:") - 1) == 0) {
-			swappiness = hybridswapd_swappiness;
-			if (free_swap_is_low())
-				swappiness = 0;
-		} else
-#endif
-			swappiness = direct_vm_swappiness;
-	}
-#ifdef CONFIG_DYNAMIC_TUNNING_SWAPPINESS
-	else {
-		unsigned long nr_file_pages =
-			global_node_page_state(NR_ACTIVE_FILE) +
-			global_node_page_state(NR_INACTIVE_FILE);
 
-		if (swappiness_threshold1_size && vm_swappiness_threshold1 &&
-				nr_file_pages >= (swappiness_threshold1_size << 8) &&
-				swappiness > vm_swappiness_threshold1) {
-			swappiness = vm_swappiness_threshold1;
-		} else if (swappiness_threshold2_size && vm_swappiness_threshold2 &&
-				nr_file_pages >= (swappiness_threshold2_size << 8) &&
-				swappiness > vm_swappiness_threshold2) {
-			swappiness = vm_swappiness_threshold2;
-		}
+#if defined(OPLUS_FEATURE_ZRAM_OPT)
+	if (current_is_kswapd()) {
+		swappiness = tune_dynamic_swappines();
+	} 
+#ifdef CONFIG_HYBRIDSWAP_SWAPD
+	else if (strncmp(current->comm, "hybridswapd:", sizeof("hybridswapd:") - 1) == 0) {
+		swappiness = hybridswapd_swappiness;
+		if (free_swap_is_low())
+			swappiness = 0;
 	}
 #endif
-	if (!sc->may_swap || (mem_cgroup_get_nr_swap_pages(memcg) <= totalswap>>6)) {
+	else {
+		swappiness = g_direct_swappiness;
+	}
+
+	if (!sc->may_swap || (mem_cgroup_get_nr_swap_pages(memcg) <= (totalswap >> 6))) {
 #else
-	/* If we have no swap space, do not bother scanning anon pages. */
 	if (!sc->may_swap || mem_cgroup_get_nr_swap_pages(memcg) <= 0) {
-#endif /*OPLUS_FEATURE_ZRAM_OPT*/
+#endif
 		scan_balance = SCAN_FILE;
 		goto out;
 	}
 
-	/*
-	 * Global reclaim will swap to prevent OOM even with no
-	 * swappiness, but memcg users want to use this knob to
-	 * disable swapping for individual groups completely when
-	 * using the memory controller's swap limit feature would be
-	 * too expensive.
-	 */
 	if (!global_reclaim(sc) && !swappiness) {
 		scan_balance = SCAN_FILE;
 		goto out;
 	}
 
-	/*
-	 * Do not apply any pressure balancing cleverness when the
-	 * system is close to OOM, scan both anon and file equally
-	 * (unless the swappiness setting disagrees with swapping).
-	 */
 	if (!sc->priority && swappiness) {
 		scan_balance = SCAN_EQUAL;
 		goto out;
 	}
 
-	/*
-	 * Prevent the reclaimer from falling into the cache trap: as
-	 * cache pages start out inactive, every cache fault will tip
-	 * the scan balance towards the file LRU.  And as the file LRU
-	 * shrinks, so does the window for rotation from references.
-	 * This means we have a runaway feedback loop where a tiny
-	 * thrashing file LRU becomes infinitely more attractive than
-	 * anon pages.  Try to detect this based on file LRU size.
-	 */
 	if (global_reclaim(sc)) {
 		unsigned long pgdatfile;
 		unsigned long pgdatfree;
@@ -2742,22 +2717,16 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 			   node_page_state(pgdat, NR_INACTIVE_FILE);
 
 		for (z = 0; z < MAX_NR_ZONES; z++) {
-			struct zone *zone = &pgdat->node_zones[z];
-			if (!managed_zone(zone))
+			struct zone *zone_node = &pgdat->node_zones[z];
+			if (!managed_zone(zone_node))
 				continue;
 
-			total_high_wmark += high_wmark_pages(zone);
+			total_high_wmark += high_wmark_pages(zone_node);
 		}
 
 		if (unlikely(pgdatfile + pgdatfree <= total_high_wmark)) {
-			/*
-			 * Force SCAN_ANON if there are enough inactive
-			 * anonymous pages on the LRU in eligible zones.
-			 * Otherwise, the small LRU gets thrashed.
-			 */
 			if (!inactive_list_is_low(lruvec, false, sc, false) &&
-			    lruvec_lru_size(lruvec, LRU_INACTIVE_ANON, sc->reclaim_idx)
-					>> sc->priority) {
+			    lruvec_lru_size(lruvec, LRU_INACTIVE_ANON, sc->reclaim_idx) >> sc->priority) {
 				scan_balance = SCAN_ANON;
 				goto out;
 			}
@@ -2765,7 +2734,6 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 	}
 
 #ifndef CONFIG_BALANCE_ANON_FILE_RECLAIM
-	//free < min + (low - min)/2;
 	zone = &pgdat->node_zones[ZONE_NORMAL];
 	free_pages_threshold = min_wmark_pages(zone) + (low_wmark_pages(zone)-min_wmark_pages(zone))/2;
 	normal_zone_free_pages = zone_page_state(zone, NR_FREE_PAGES);
@@ -2774,65 +2742,35 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 	}
 #endif
 
-	/*
-	 * If there is enough inactive page cache, i.e. if the size of the
-	 * inactive list is greater than that of the active list *and* the
-	 * inactive list actually has some pages to scan on this priority, we
-	 * do not reclaim anything from the anonymous working set right now.
-	 * Without the second condition we could end up never scanning an
-	 * lruvec even if it has plenty of old anonymous pages unless the
-	 * system is under heavy pressure.
-	 */
 	if (!IS_ENABLED(CONFIG_BALANCE_ANON_FILE_RECLAIM) &&
 #ifndef CONFIG_BALANCE_ANON_FILE_RECLAIM
-	    !balance_anon_file_reclaim &&
+		!balance_anon_file_reclaim &&
 #endif
-	    !inactive_list_is_low(lruvec, true, sc, false) &&
-	    lruvec_lru_size(lruvec, LRU_INACTIVE_FILE, sc->reclaim_idx) >> sc->priority) {
+		!inactive_list_is_low(lruvec, true, sc, false) &&
+		lruvec_lru_size(lruvec, LRU_INACTIVE_FILE, sc->reclaim_idx) >> sc->priority) {
 		scan_balance = SCAN_FILE;
 		goto out;
 	}
 
 	scan_balance = SCAN_FRACT;
-
-	/*
-	 * With swappiness at 100, anonymous and file have the same priority.
-	 * This scanning priority is essentially the inverse of IO cost.
-	 */
 	anon_prio = swappiness;
 	file_prio = 200 - anon_prio;
 
-	/*
-	 * OK, so we have swap space and a fair amount of page cache
-	 * pages.  We use the recently rotated / recently scanned
-	 * ratios to determine how valuable each cache is.
-	 *
-	 * Because workloads change over time (and to avoid overflow)
-	 * we keep these statistics as a floating average, which ends
-	 * up weighing recent references more than old ones.
-	 */
-
-	anon  = lruvec_lru_size(lruvec, LRU_ACTIVE_ANON, MAX_NR_ZONES) +
-		lruvec_lru_size(lruvec, LRU_INACTIVE_ANON, MAX_NR_ZONES);
-	file  = lruvec_lru_size(lruvec, LRU_ACTIVE_FILE, MAX_NR_ZONES) +
-		lruvec_lru_size(lruvec, LRU_INACTIVE_FILE, MAX_NR_ZONES);
+	anon = lruvec_lru_size(lruvec, LRU_ACTIVE_ANON, MAX_NR_ZONES) +
+	       lruvec_lru_size(lruvec, LRU_INACTIVE_ANON, MAX_NR_ZONES);
+	file = lruvec_lru_size(lruvec, LRU_ACTIVE_FILE, MAX_NR_ZONES) +
+	       lruvec_lru_size(lruvec, LRU_INACTIVE_FILE, MAX_NR_ZONES);
 
 	spin_lock_irq(&pgdat->lru_lock);
 	if (unlikely(reclaim_stat->recent_scanned[0] > anon / 4)) {
 		reclaim_stat->recent_scanned[0] /= 2;
 		reclaim_stat->recent_rotated[0] /= 2;
 	}
-
 	if (unlikely(reclaim_stat->recent_scanned[1] > file / 4)) {
 		reclaim_stat->recent_scanned[1] /= 2;
 		reclaim_stat->recent_rotated[1] /= 2;
 	}
 
-	/*
-	 * The amount of pressure on anon vs file pages is inversely
-	 * proportional to the fraction of recently scanned pages on
-	 * each list that were recently referenced and in active use.
-	 */
 	ap = anon_prio * (reclaim_stat->recent_scanned[0] + 1);
 	ap /= reclaim_stat->recent_rotated[0] + 1;
 
@@ -2843,50 +2781,36 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 	fraction[0] = ap;
 	fraction[1] = fp;
 	denominator = ap + fp + 1;
+
 out:
 	*lru_pages = 0;
 	for_each_evictable_lru(lru) {
-		int file = is_file_lru(lru);
+		int is_file = is_file_lru(lru);
 		unsigned long size;
 		unsigned long scan;
 
 		size = lruvec_lru_size(lruvec, lru, sc->reclaim_idx);
 		scan = size >> sc->priority;
-		/*
-		 * If the cgroup's already been deleted, make sure to
-		 * scrape out the remaining cache.
-		 */
-		if (!scan && !mem_cgroup_online(memcg))
-			scan = min(size, SWAP_CLUSTER_MAX);
 
-		trace_android_vh_tune_scan_type((char *)(&scan_balance));
+		if (!scan && !mem_cgroup_online(memcg))
+			scan = min(size, (unsigned long)SWAP_CLUSTER_MAX);
+
 		switch (scan_balance) {
 		case SCAN_EQUAL:
-			/* Scan lists relative to size */
 			break;
 		case SCAN_FRACT:
-			/*
-			 * Scan types proportional to swappiness and
-			 * their relative recent reclaim efficiency.
-			 * Make sure we don't miss the last page on
-			 * the offlined memory cgroups because of a
-			 * round-off error.
-			 */
 			scan = mem_cgroup_online(memcg) ?
-			       div64_u64(scan * fraction[file], denominator) :
-			       DIV64_U64_ROUND_UP(scan * fraction[file],
-						  denominator);
+				   div64_u64(scan * fraction[is_file], denominator) :
+				   DIV64_U64_ROUND_UP(scan * fraction[is_file], denominator);
 			break;
 		case SCAN_FILE:
 		case SCAN_ANON:
-			/* Scan one type exclusively */
-			if ((scan_balance == SCAN_FILE) != file) {
+			if ((scan_balance == SCAN_FILE) != is_file) {
 				size = 0;
 				scan = 0;
 			}
 			break;
 		default:
-			/* Look ma, no brain */
 			BUG();
 		}
 

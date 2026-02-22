@@ -11,13 +11,13 @@
 
 #include <linux/module.h>
 #include <linux/types.h>
-#include <trace/hooks/vmscan.h>
+// #include <trace/hooks/vmscan.h>
 #include <linux/swap.h>
 #include <linux/proc_fs.h>
 #include <linux/mm.h>
 
-static int g_direct_swappiness = 60;
-static int g_swappiness = 160;
+int g_direct_swappiness = 60;
+int g_swappiness = 160;
 
 static int threshold1_vm_swappiness;
 static int threshold2_vm_swappiness;
@@ -29,7 +29,7 @@ static struct proc_dir_entry *dynamic_swappiness_entry;
 #define check_vm_threshold(val) ((val) < 0)
 
 #define PARA_BUF_LEN 128
-static int g_hybridswapd_swappiness = 200;
+int g_hybridswapd_swappiness = 200;
 static struct proc_dir_entry *para_entry;
 
 typedef bool (*free_swap_is_low_func)(void);
@@ -107,39 +107,12 @@ static void balance_reclaim(void *unused, bool *balance_anon_file_reclaim)
 
 static int register_zram_opt_vendor_hooks(void)
 {
-	int ret = 0;
-
-	ret = register_trace_android_vh_tune_swappiness(zo_set_swappiness, NULL);
-	if (ret != 0) {
-		pr_err("register_trace_android_vh_set_swappiness failed! ret=%d\n", ret);
-		goto out;
-	}
-
-	/* FIXME: We do not get the vendor_hook back for now, so we skip tune_inactive_ratio temporally */
-	/*
-	ret = register_trace_android_vh_tune_inactive_ratio(zo_set_inactive_ratio, NULL);
-	if (ret != 0) {
-		pr_err("register_trace_android_vh_tune_inactive_ratio failed! ret=%d\n", ret);
-		goto out;
-	}
-	*/
-
-	ret = register_trace_android_rvh_set_balance_anon_file_reclaim(balance_reclaim,
-								       NULL);
-	if (ret) {
-		pr_err("Failed to register balance_anon_file_reclaim hooks\n");
-		return ret;
-	}
-
-out:
-	return ret;
+    return 0;
 }
 
 static void unregister_zram_opt_vendor_hooks(void)
 {
-	unregister_trace_android_vh_tune_swappiness(zo_set_swappiness, NULL);
-
-	return;
+    return;
 }
 
 static inline bool debug_get_val(char *buf, char *token, unsigned long *val)
@@ -234,10 +207,10 @@ static ssize_t swappiness_para_read(struct file *file,
 	return (len < count ? len : count);
 }
 
-static const struct proc_ops proc_swappiness_para_ops = {
-	.proc_write          = swappiness_para_write,
-	.proc_read		= swappiness_para_read,
-	.proc_lseek		= default_llseek,
+static const struct file_operations proc_swappiness_para_ops = {
+	.read = swappiness_para_read,
+	.write = swappiness_para_write,
+	.owner = THIS_MODULE,
 };
 
 static int __init create_swappiness_para_proc(void)
@@ -337,10 +310,10 @@ static ssize_t dynamic_swappiness_read(struct file *file,
 	return (len < count ? len : count);
 }
 
-static const struct proc_ops proc_dynamic_swappiness_ops = {
-	.proc_write	= dynamic_swappiness_write,
-	.proc_read	= dynamic_swappiness_read,
-	.proc_lseek	= default_llseek,
+static const struct file_operations proc_dynamic_swappiness_ops = {
+	.read = dynamic_swappiness_read,
+	.write = dynamic_swappiness_write,
+	.owner = THIS_MODULE,
 };
 
 static int __init create_dynamic_swappiness_proc(void)
