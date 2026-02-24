@@ -86,6 +86,8 @@
 extern int tune_dynamic_swappines(void); 
 #endif
 
+extern int tune_dynamic_swappines(void);
+
 struct scan_control {
 	/* How many pages shrink_list() should reclaim */
 	unsigned long nr_to_reclaim;

@@ -19,10 +19,10 @@
 int g_direct_swappiness = 60;
 int g_swappiness = 160;
 
-static int threshold1_vm_swappiness;
-static int threshold2_vm_swappiness;
-static int threshold1_swappiness_size;
-static int threshold2_swappiness_size;
+int threshold1_vm_swappiness = 180;
+int threshold2_vm_swappiness = 160;
+int threshold1_swappiness_size = 2048;
+int threshold2_swappiness_size = 4096;
 static struct proc_dir_entry *dynamic_swappiness_entry;
 
 #define check_swappiness(val) (((val) > 200) || ((val) < 0))
@@ -38,21 +38,24 @@ EXPORT_SYMBOL(free_swap_is_low_fp);
 
 int tune_dynamic_swappines(void)
 {
-	unsigned long nr_file_pages = 0;
+    unsigned long nr_file_pages = 0;
 
-	nr_file_pages = global_node_page_state(NR_ACTIVE_FILE) +
-		global_node_page_state(NR_INACTIVE_FILE);
+    nr_file_pages = global_node_page_state(NR_ACTIVE_FILE) +
+        global_node_page_state(NR_INACTIVE_FILE);
 
-	if (threshold1_swappiness_size &&
-			(nr_file_pages >= (threshold1_swappiness_size << 8)))
-		return threshold1_vm_swappiness ? : g_swappiness;
-	else if (threshold2_swappiness_size &&
-			(nr_file_pages >= (threshold2_swappiness_size << 8)))
-		return threshold2_vm_swappiness ? : g_swappiness;
+    if (threshold2_swappiness_size &&
+            (nr_file_pages >= (threshold2_swappiness_size << 8)))
+        return threshold2_vm_swappiness ? : g_swappiness;
 
-	return g_swappiness;
+    else if (threshold1_swappiness_size &&
+            (nr_file_pages >= (threshold1_swappiness_size << 8)))
+        return threshold1_vm_swappiness ? : g_swappiness;
+
+    return g_swappiness;
 }
+EXPORT_SYMBOL(tune_dynamic_swappines);
 
+#if 0
 static void zo_set_swappiness(void *data, int *swappiness)
 {
 	if (current_is_kswapd()) {
@@ -114,6 +117,7 @@ static void unregister_zram_opt_vendor_hooks(void)
 {
     return;
 }
+#endif
 
 static inline bool debug_get_val(char *buf, char *token, unsigned long *val)
 {
@@ -338,33 +342,26 @@ static void __exit destroy_dynamic_swappiness_proc(void)
 
 static int __init zram_opt_init(void)
 {
-	int ret = 0;
+    int ret = 0;
 
-	ret = create_swappiness_para_proc();
-	if (ret)
-		return ret;
+    ret = create_swappiness_para_proc();
+    if (ret)
+        return ret;
 
-	ret = register_zram_opt_vendor_hooks();
-	if (ret != 0) {
-		destroy_swappiness_para_proc();
-		return ret;
-	}
+    ret = create_dynamic_swappiness_proc();
+    if (ret) {
+        destroy_swappiness_para_proc();
+        return ret;
+    }
 
-	/* must called after create_swappiness_para_proc */
-	ret = create_dynamic_swappiness_proc();
-	if (ret) {
-		unregister_zram_opt_vendor_hooks();
-		destroy_swappiness_para_proc();
-		return ret;
-	}
-	pr_info("%s succeed\n", __func__);
-	return 0;
+    pr_info("zram_opt_init: Legacy Link Mode succeed\n");
+    return 0;
 }
 
 static void __exit zram_opt_exit(void)
 {
 	destroy_dynamic_swappiness_proc();
-	unregister_zram_opt_vendor_hooks();
+//	unregister_zram_opt_vendor_hooks();
 	destroy_swappiness_para_proc();
 
 	pr_info("zram_opt_exit succeed!\n");
