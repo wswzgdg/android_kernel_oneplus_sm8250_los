@@ -364,6 +364,18 @@ static int lz4_decompress_pages(struct decompress_io_ctx *dic)
         ret = LZ4_decompress_safe(dic->cbuf->cdata, dic->rbuf,
                         dic->clen, dic->rlen);
 #endif
+    int ret = 0;
+
+    if (f2fs_compress_layout(dic->inode) == COMPRESS_FIXED_INPUT) {
+        expected = PAGE_SIZE << dic->log_cluster_size;
+
+#if defined(CONFIG_ARM64) && defined(CONFIG_KERNEL_MODE_NEON)
+        ret = LZ4_arm64_decompress_safe(dic->cbuf->cdata, dic->rbuf,
+                        dic->clen, dic->rlen, false);
+#else
+        ret = LZ4_decompress_safe(dic->cbuf->cdata, dic->rbuf,
+                        dic->clen, dic->rlen);
+#endif
 
 #ifdef CONFIG_F2FS_FS_COMPRESSION_FIXED_OUTPUT
     } else {
