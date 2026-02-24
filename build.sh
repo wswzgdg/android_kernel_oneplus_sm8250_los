@@ -2,6 +2,12 @@
 
 KERNEL_ROOT=$PWD
 
+# Remove out, if exist
+if [ -d "$KERNEL_ROOT/out" ]; then
+    echo "Delete the existing out folder."
+    rm -rf "$KERNEL_ROOT/out"
+fi
+
 KERNEL_OUTPUT=$KERNEL_ROOT/out/arch/arm64/boot
 
 # ARCH
