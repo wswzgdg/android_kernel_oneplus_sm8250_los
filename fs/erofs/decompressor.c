@@ -232,16 +232,16 @@ static int z_erofs_lz4_decompress(struct z_erofs_decompress_req *rq, u8 *dst)
 		ret = LZ4_arm64_decompress_safe_partial(src + inputmargin, out,
 					  rq->inputsize, rq->outputsize, false);
 #else
-		ret = LZ4_decompress_safe_partial(src + inputmargin, out,
-				rq->inputsize, rq->outputsize, rq->outputsize);
+		ret = LZ4_arm64_decompress_safe_partial(src + inputmargin, out,
+				rq->inputsize, rq->outputsize, rq->inplace_io);
 #endif
 	} else {
 #if defined(CONFIG_ARM64) && defined(CONFIG_KERNEL_MODE_NEON)
 		ret = LZ4_arm64_decompress_safe(src + inputmargin, out,
 					  rq->inputsize, rq->outputsize, false);
 #else
-		ret = LZ4_decompress_safe(src + inputmargin, out,
-					  rq->inputsize, rq->outputsize);
+		ret = LZ4_arm64_decompress_safe(src + inputmargin, out,
+					  rq->inputsize, rq->outputsize, rq->inplace_io);
 #endif
 	}
 bypass_decompression:
