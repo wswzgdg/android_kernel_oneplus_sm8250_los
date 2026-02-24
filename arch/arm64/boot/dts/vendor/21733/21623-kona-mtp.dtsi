@@ -1,0 +1,115 @@
+#include "kona-mtp.dtsi" 
+
+&soc {
+    oplus_sensor {
+        msensor@1 {
+            soft-mag-parameter = <9995 0 268 1 185 1 48 1 8998 0 307 1 195 1 158 1 9932 0>;//e00 sign e01 sign ...
+        };
+    };
+};
+
+&qupv3_se13_i2c {
+    black_gesture_indep_support;
+    sportify_aod_gesture_support;
+    switch_game_rate_support;
+    report_rate_game_value = <1>;
+};
+
+&qupv3_se16_i2c {
+    rk826_fastcg@0a {
+        qcom,smart_chg_bcc_support;
+
+        qcom,svooc_0_to_50_little_cold_stop_cur = <1000>;
+		qcom,svooc_0_to_50_cold_stop_cur = <1000>;
+		qcom,svooc_0_to_50_little_cool_stop_cur = <1100>;
+		qcom,svooc_0_to_50_normal_low_stop_cur = <1100>;
+		qcom,svooc_0_to_50_normal_high_stop_cur = <1300>;
+		qcom,svooc_0_to_50_warm_stop_cur = <1300>;
+
+		qcom,svooc_51_to_75_little_cold_stop_cur = <1000>;
+		qcom,svooc_51_to_75_cold_stop_cur = <1000>;
+		qcom,svooc_51_to_75_little_cool_stop_cur = <1000>;
+		qcom,svooc_51_to_75_normal_low_stop_cur = <1100>;
+		qcom,svooc_51_to_75_normal_high_stop_cur = <1300>;
+
+		qcom,svooc_76_to_85_little_cold_stop_cur = <1000>;
+		qcom,svooc_76_to_85_cold_stop_cur = <1000>;
+		qcom,svooc_76_to_85_little_cool_stop_cur = <1000>;
+		qcom,svooc_76_to_85_normal_low_stop_cur = <1100>;
+		qcom,svooc_76_to_85_normal_high_stop_cur = <1300>;
+
+		qcom,svooc_86_to_90_little_cold_stop_cur = <1000>;
+		qcom,svooc_86_to_90_cold_stop_cur = <1000>;
+		qcom,svooc_86_to_90_little_cool_stop_cur = <1000>;
+		qcom,svooc_86_to_90_normal_low_stop_cur = <1100>;
+		qcom,svooc_86_to_90_normal_high_stop_cur = <1300>;
+
+        svooc_charge_curve {
+            strategy_soc_0_to_50 {
+                strategy_temp_little_cold =	<4184 20 10 0
+                                    4424 15 10 0
+                                    4430 10 10 1>;
+                strategy_temp_cool = <4184 25 15 0
+                                    4424 20 10 0
+                                    4430 10 10 1>;
+                strategy_temp_little_cool = <4184 50 35 0
+                                    4454 40 25 0
+                                    4484 30 11 0
+                                    4490 11 11 1>;
+                strategy_temp_normal_low =	<4134 73 55 0
+                                    4184 60 45 0
+                                    4224 50 35 0
+                                    4454 40 25 0
+                                    4484 30 11 0
+                                    4490 11 11 1>;
+                strategy_temp_normal_high =	<4134 73 55 0
+                                    4184 60 45 0
+                                    4224 50 35 0
+                                    4454 40 25 0
+                                    4484 30 13 0
+                                    4490 13 13 1>;
+                strategy_temp_warm = <4130 13 13 1>;
+            };
+
+            strategy_soc_50_to_75 {
+                strategy_temp_little_cold =	<4424 15 10 0
+                                    4430 10 10 1>;
+                strategy_temp_cool = <4424 20 10 0
+                                    4430 10 10 1>;
+                strategy_temp_little_cool =	<4454 40 25 0
+                                    4484 30 10 0
+                                    4490 10 10 1>;
+                strategy_temp_normal_low = <4454 40 25 0
+                                    4484 30 11 0
+                                    4490 11 11 1>;
+                strategy_temp_normal_high =	<4224 45 35 0
+                                    4454 40 25 0
+                                    4484 30 13 0
+                                    4490 13 13 1>;
+            };
+
+            strategy_soc_75_to_85 {
+                strategy_temp_little_cold = <4430 10 10 0>;
+                strategy_temp_cool = <4424 15 10 0
+                                    4430 10 10 1>;
+                strategy_temp_little_cool =	<4484 25 10 0
+                                    4490 10 10 1>;
+                strategy_temp_normal_low =	<4484 30 11 0
+                                    4490 11 11 1>;
+                strategy_temp_normal_high =	<4484 30 13 0
+                                    4490 13 13 1>;
+            };
+
+            strategy_soc_85_to_90 {
+                strategy_temp_little_cold = <4430 10 10 1>;
+                strategy_temp_cool = <4430 10 10 1>;
+                strategy_temp_little_cool =	<4484 15 10 0
+                                    4490 10 10 1>;
+                strategy_temp_normal_low =	<4484 20 11 0
+                                    4490 11 11 1>;
+                strategy_temp_normal_high =	<4484 20 13 0
+                                    4490 13 13 1>;
+            };
+        };
+    };
+};
