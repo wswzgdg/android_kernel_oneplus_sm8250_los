@@ -22,14 +22,6 @@
 #include "dsi-panel-sim-sec-hd-cmd.dtsi"
 #include "dsi-panel-xrsmrtvwr-jdi-dual-video.dtsi"
 //#ifdef OPLUS_FEATURE_EDIT
-#include "dsi-panel-samsung_oneplus_dsc.dtsi"
-#include "dsi-panel-oppo19065-samsung-1440-3168-dsc-cmd.dtsi"
-#include "pxlw-iris5-cfg-oppo19065_samsung_1440_3168_cmd.dtsi"
-#include "dsi-panel-oplus20061-samsung-1440-3216-dsc-cmd.dtsi"
-#include "dsi-panel-oplus20061-samsung-1440-3216-dsc-cmd-evt.dtsi"
-#include "dsi-panel-oplus20061-samsung-1440-3216-dsc-cmd-dvt.dtsi"
-#include "dsi-panel-oplus20061-samsung-1440-3216-dsc-cmd-dvt-id07.dtsi"
-#include "dsi-panel-oplus20061-samsung-1440-3216-dsc-cmd-dvt-id09.dtsi"
 #include "dsi-panel-oppo21615-samsung-amb655xl16-1080-2400-dsc-cmd.dtsi"
 #include "dsi-panel-oppo21615-samsung-amb655xl16-1080-2400-dsc-cmd_90.dtsi"
 //#endif
@@ -257,7 +249,6 @@
 		qcom,mdp = <&mdss_mdp>;
 		//#ifdef OPLUS_FEATURE_EDIT
 		qcom,dsi-default-panel = <&dsi_oppo21615samsung_amb655xl16_1080_2400_cmd>;
-		//pxlw,iris-lightup-config = <&mdss_iris_cfg_oppo19065_samsung_1440_3168_dsc_cmd>;
 		pxlw,soft-iris-enable;
 		//#endif
 	};
@@ -296,7 +287,7 @@
 		vout-supply = <&L2C>;
 
 		avdd-supply = <&display_panel_avdd>;
-		qcom,dsi-default-panel = <&dsi_oppo19065_samsung_1440_3168_dsc_cmd>;
+		qcom,dsi-default-panel = <&dsi_oppo21615samsung_amb655xl16_1080_2400_cmd>;
 		//#endif /* OPLUS_FEATURE_EDIT */
 		qcom,mdp = <&mdss_mdp>;
 	};
@@ -309,7 +300,7 @@
         //#ifdef OPLUS_FEATURE_EDIT
 	msm_notifier: qcom,msm_notifier@0 {
 		compatible = "qcom,msm-notifier";
-		panel = <&dsi_oppo19065_samsung_1440_3168_dsc_cmd>;
+		panel = <&dsi_oppo21615samsung_amb655xl16_1080_2400_cmd>;
 	};
         //#endif
 };
