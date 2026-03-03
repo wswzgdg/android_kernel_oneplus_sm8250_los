@@ -16,13 +16,13 @@
 #include <linux/proc_fs.h>
 #include <linux/mm.h>
 
-int g_direct_swappiness = 60;
-int g_swappiness = 160;
+int g_direct_swappiness = 150; 
+int g_swappiness = 170;
 
-int threshold1_vm_swappiness = 180;
-int threshold2_vm_swappiness = 160;
-int threshold1_swappiness_size = 2048;
-int threshold2_swappiness_size = 4096;
+int threshold1_vm_swappiness = 200;
+int threshold2_vm_swappiness = 180;
+int threshold1_swappiness_size = 3072;
+int threshold2_swappiness_size = 5120;
 static struct proc_dir_entry *dynamic_swappiness_entry;
 
 #define check_swappiness(val) (((val) > 200) || ((val) < 0))
