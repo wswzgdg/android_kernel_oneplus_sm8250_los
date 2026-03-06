@@ -40,6 +40,8 @@
 #include "hybridswap/hybridswap.h"
 #endif
 
+#include "zram_dedup.h"
+
 static DEFINE_IDR(zram_index_idr);
 /* idr index must be protected */
 static DEFINE_MUTEX(zram_index_mutex);

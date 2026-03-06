@@ -168,6 +168,10 @@ struct zram {
 
 void zram_entry_free(struct zram *zram, struct zram_entry *entry);
 
+#ifndef CONFIG_ZRAM_DEDUP
+static inline bool zram_dedup_enabled(struct zram *zram) { return false; }
+#endif
+
 #ifdef CONFIG_ZRAM_WRITEBACK
 void ksys_sync(void);
 #endif
