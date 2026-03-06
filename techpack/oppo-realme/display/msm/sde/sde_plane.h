@@ -41,6 +41,10 @@
 		SDE_PLANE_DIRTY_DMA_GC)
 #define SDE_PLANE_DIRTY_ALL	(0xFFFFFFFF & ~(SDE_PLANE_DIRTY_CP))
 
+#ifndef SDE_PLANE_DIRTY_QOS
+#define SDE_PLANE_DIRTY_QOS       (1 << 5)
+#endif
+
 /**
  * enum sde_plane_sclcheck_state - User scaler data status
  *
