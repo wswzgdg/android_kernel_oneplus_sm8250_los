@@ -15,7 +15,7 @@
 #include <linux/cgroupstats.h>
 #include <linux/cpu.h>
 #include <linux/binfmts.h>
-#include <linux/cpu_input_boost.h>
+// #include <linux/cpu_input_boost.h>
 
 #include <trace/events/cgroup.h>
 
