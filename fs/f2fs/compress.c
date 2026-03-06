@@ -356,7 +356,6 @@ static int lz4_decompress_pages(struct decompress_io_ctx *dic)
     if (f2fs_compress_layout(dic->inode) == COMPRESS_FIXED_INPUT) {
         expected = PAGE_SIZE << dic->log_cluster_size;
         
-        /* 这里插入 ARM64 NEON 加速逻辑 */
 #if defined(CONFIG_ARM64) && defined(CONFIG_KERNEL_MODE_NEON)
         ret = LZ4_arm64_decompress_safe(dic->cbuf->cdata, dic->rbuf,
                         dic->clen, dic->rlen, false);
@@ -364,21 +363,9 @@ static int lz4_decompress_pages(struct decompress_io_ctx *dic)
         ret = LZ4_decompress_safe(dic->cbuf->cdata, dic->rbuf,
                         dic->clen, dic->rlen);
 #endif
-    int ret = 0;
-
-    if (f2fs_compress_layout(dic->inode) == COMPRESS_FIXED_INPUT) {
-        expected = PAGE_SIZE << dic->log_cluster_size;
-
-#if defined(CONFIG_ARM64) && defined(CONFIG_KERNEL_MODE_NEON)
-        ret = LZ4_arm64_decompress_safe(dic->cbuf->cdata, dic->rbuf,
-                        dic->clen, dic->rlen, false);
-#else
-        ret = LZ4_decompress_safe(dic->cbuf->cdata, dic->rbuf,
-                        dic->clen, dic->rlen);
-#endif
-
+    }
 #ifdef CONFIG_F2FS_FS_COMPRESSION_FIXED_OUTPUT
-    } else {
+    else {
         uint8_t *dst = (uint8_t *)dic->rbuf + dic->rofs;
         const uint8_t *src = (uint8_t *)dic->cbuf + dic->cofs;
         uint8_t *dstptr = dst;
@@ -407,23 +394,23 @@ static int lz4_decompress_pages(struct decompress_io_ctx *dic)
         if (!accel)
             ret = LZ4_decompress_safe_partial(srcptr, dstptr,
                           dic->clen, dic->rlen, dic->rlen);
+    }
 #endif
+
+    if (ret < 0) {
+        printk_ratelimited("%sF2FS-fs (%s): lz4 decompress failed, ret:%d\n",
+                KERN_ERR, F2FS_I_SB(dic->inode)->sb->s_id, ret);
+        return -EIO;
     }
 
-	if (ret < 0) {
-		printk_ratelimited("%sF2FS-fs (%s): lz4 decompress failed, ret:%d\n",
-				KERN_ERR, F2FS_I_SB(dic->inode)->sb->s_id, ret);
-		return -EIO;
-	}
-
-	if (ret != expected) {
-		printk_ratelimited("%sF2FS-fs (%s): lz4 invalid ret:%d, "
-					"expected:%lu\n", KERN_ERR,
-					F2FS_I_SB(dic->inode)->sb->s_id, ret,
-					expected);
-		return -EIO;
-	}
-	return 0;
+    if (ret != expected) {
+        printk_ratelimited("%sF2FS-fs (%s): lz4 invalid ret:%d, "
+                    "expected:%lu\n", KERN_ERR,
+                    F2FS_I_SB(dic->inode)->sb->s_id, ret,
+                    expected);
+        return -EIO;
+    }
+    return 0;
 }
 
 static bool lz4_is_level_valid(int lvl)
