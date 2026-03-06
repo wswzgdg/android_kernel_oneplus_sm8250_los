@@ -1217,13 +1217,6 @@ static void z_erofs_decompressqueue_work(struct work_struct *work)
 	kvfree(bgq);
 }
 
-#ifdef CONFIG_EROFS_FS_PCPU_KTHREAD
-static void z_erofs_decompressqueue_kthread_work(struct kthread_work *work)
-{
-	z_erofs_decompressqueue_work((struct work_struct *)work);
-}
-#endif
-
 static struct page *pickup_page_for_submission(struct z_erofs_pcluster *pcl,
 					       unsigned int nr,
 					       struct list_head *pagepool,
