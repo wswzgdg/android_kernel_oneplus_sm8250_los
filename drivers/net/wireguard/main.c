@@ -53,12 +53,12 @@ static int __init wg_mod_init(void)
 err_netlink:
 	wg_device_uninit();
 err_device:
-	wg_allowedips_slab_uninit();
-err_allowedips:
 	wg_peer_uninit();
 err_peer:
-	wg_allowedips_slab_uninit();
+	wg_allowedips_free();
 err_allowedips:
+	wg_allowedips_slab_uninit();
+err_allowedips_slab:
 	return ret;
 }
 
