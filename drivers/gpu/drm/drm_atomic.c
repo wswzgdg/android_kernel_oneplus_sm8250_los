@@ -33,7 +33,7 @@
 #include <drm/drm_writeback.h>
 #include <linux/sync_file.h>
 #include <linux/pm_qos.h>
-#include <linux/cpu_input_boost.h>
+// #include <linux/cpu_input_boost.h>
 #include <linux/sched/sysctl.h>
 
 #include "drm_crtc_internal.h"
@@ -2612,7 +2612,7 @@ static int __drm_mode_atomic_ioctl(struct drm_device *dev, void *data,
 	/* Boost CPU when committing a new frame if sched_boost > 0 */
 	if (!(arg->flags & DRM_MODE_ATOMIC_TEST_ONLY) &&
 			sysctl_sched_boost) {
-		cpu_input_boost_kick();
+//		cpu_input_boost_kick();
 	}
 
 	drm_modeset_acquire_init(&ctx, DRM_MODESET_ACQUIRE_INTERRUPTIBLE);
