@@ -24,6 +24,8 @@
 #include <asm/ptrace.h>
 #include <asm/irq_regs.h>
 
+#define IRQD_PERF_CRITICAL		(1 << 23)
+
 struct seq_file;
 struct module;
 struct msi_msg;
