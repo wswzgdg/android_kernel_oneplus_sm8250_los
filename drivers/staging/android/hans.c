@@ -39,136 +39,140 @@ static void hans_kern_support_cgrpv2(void) {
  */
 int hans_report(enum message_type type, int caller_pid, int caller_uid, int target_pid, int target_uid, const char *rpc_name, int code)
 {
-	int len = 0;
-	int ret = 0;
-	struct hans_message *data = NULL;
-	struct sk_buff *skb = NULL;
-	struct nlmsghdr *nlh = NULL;
+    int len = 0;
+    int ret = 0;
+    struct hans_message *data = NULL;
+    struct sk_buff *skb = NULL;
+    struct nlmsghdr *nlh = NULL;
 
-	if (atomic_read(&hans_deamon_port) == -1) {
-		pr_err("%s: hans_deamon_port invalid!\n", __func__);
+    if (atomic_read(&hans_deamon_port) == -1) {
+    return HANS_NOERROR; 
+}
+
+    if (sock_handle == NULL) {
+        pr_err("%s: sock_handle invalid!\n", __func__);
                 return HANS_ERROR;
-	}
+    }
 
-	if (sock_handle == NULL) {
-		pr_err("%s: sock_handle invalid!\n", __func__);
-                return HANS_ERROR;
-	}
+    if (type >= TYPE_MAX) {
+        pr_err("%s: type = %d invalid!\n", __func__, type);
+        return HANS_ERROR;
+    }
 
-	if (type >= TYPE_MAX) {
-		pr_err("%s: type = %d invalid!\n", __func__, type);
-		return HANS_ERROR;
-	}
+    len = sizeof(struct hans_message);
+    skb = nlmsg_new(len, GFP_ATOMIC);
+    if (skb == NULL) {
+        pr_err("%s: type =%d, nlmsg_new failed!\n", __func__, type);
+        return HANS_ERROR;
+    }
 
-	len = sizeof(struct hans_message);
-	skb = nlmsg_new(len, GFP_ATOMIC);
-	if (skb == NULL) {
-		pr_err("%s: type =%d, nlmsg_new failed!\n", __func__, type);
-		return HANS_ERROR;
-	}
+    nlh = nlmsg_put(skb, 0, 0, 0, len, 0);
+    if (nlh == NULL) {
+        pr_err("%s: type =%d, nlmsg_put failed!\n", __func__, type);
+        kfree_skb(skb);
+        return HANS_ERROR;
+    }
 
-	nlh = nlmsg_put(skb, 0, 0, 0, len, 0);
-	if (nlh == NULL) {
-		pr_err("%s: type =%d, nlmsg_put failed!\n", __func__, type);
-		kfree_skb(skb);
-		return HANS_ERROR;
-	}
+    data = nlmsg_data(nlh);
+    if(data == NULL) {
+        pr_err("%s: type =%d, nlmsg_data failed!\n", __func__, type);
+        return HANS_ERROR;
+    }
+    data->type = type;
+    data->port = NETLINK_PORT_HANS;
+    data->caller_pid = caller_pid;
+    data->caller_uid = caller_uid;
+    data->target_pid = target_pid;
+    data->target_uid = target_uid;
+    data->pkg_cmd = -1; //invalid package cmd
+    data->code = code;
+    strlcpy(data->rpc_name, rpc_name, INTERFACETOKEN_BUFF_SIZE);
+    nlmsg_end(skb, nlh);
 
-	data = nlmsg_data(nlh);
-	if(data == NULL) {
-		pr_err("%s: type =%d, nlmsg_data failed!\n", __func__, type);
-		return HANS_ERROR;
-	}
-	data->type = type;
-	data->port = NETLINK_PORT_HANS;
-	data->caller_pid = caller_pid;
-	data->caller_uid = caller_uid;
-	data->target_pid = target_pid;
-	data->target_uid = target_uid;
-	data->pkg_cmd = -1; //invalid package cmd
-	data->code = code;
-	strlcpy(data->rpc_name, rpc_name, INTERFACETOKEN_BUFF_SIZE);
-	nlmsg_end(skb, nlh);
+    if ((ret = nlmsg_unicast(sock_handle, skb, (u32)atomic_read(&hans_deamon_port))) < 0) {
+        pr_err("%s: nlmsg_unicast failed! err = %d\n", __func__ , ret);
+        return HANS_ERROR;
+    }
 
-	if ((ret = nlmsg_unicast(sock_handle, skb, (u32)atomic_read(&hans_deamon_port))) < 0) {
-		pr_err("%s: nlmsg_unicast failed! err = %d\n", __func__ , ret);
-		return HANS_ERROR;
-	}
-
-	return HANS_NOERROR;
+    return HANS_NOERROR;
 }
 
 // HANS kernel module handle the message from HANS native deamon
 static void hans_handler(struct sk_buff *skb)
 {
-	struct hans_message *data = NULL;
-	struct nlmsghdr *nlh = NULL;
-	unsigned int len  = 0;
-	int uid = -1;
+    struct hans_message *data = NULL;
+    struct nlmsghdr *nlh = NULL;
+    unsigned int len  = 0;
+    int uid = -1;
 
-	if (!skb) {
-		pr_err("%s: recv skb NULL!\n", __func__);
-		return;
-	}
+    if (!skb) {
+        pr_err("%s: recv skb NULL!\n", __func__);
+        return;
+    }
 
-	uid = (*NETLINK_CREDS(skb)).uid.val;
-	//only allow native deamon talk with HANS kernel.
-	if (uid != 1000) {
-		pr_err("%s: uid: %d, permission denied\n", __func__, uid);
-		return;
-	}
+    uid = (*NETLINK_CREDS(skb)).uid.val;
+    //only allow native deamon talk with HANS kernel.
+//  if (uid != 1000) {
+//      pr_err("%s: uid: %d, permission denied\n", __func__, uid);
+//      return;
+//  }
 
-	if (skb->len >= NLMSG_SPACE(0)) {
-		nlh = nlmsg_hdr(skb);
-		len = NLMSG_PAYLOAD(nlh, 0);
-		data = (struct hans_message *)NLMSG_DATA(nlh);
+    if (skb->len >= NLMSG_SPACE(0)) {
+        nlh = nlmsg_hdr(skb);
+        len = NLMSG_PAYLOAD(nlh, 0);
+        data = (struct hans_message *)NLMSG_DATA(nlh);
 
-		if (len < sizeof (struct hans_message)) {
-			pr_err("%s: hans_message len check faied! len = %d  min_expected_len = %lu!\n", __func__, len, sizeof(struct hans_message));
-			return;
-		}
+        if (len < sizeof (struct hans_message)) {
+            pr_err("%s: hans_message len check faied! len = %d  min_expected_len = %lu!\n", __func__, len, sizeof(struct hans_message));
+            return;
+        }
 
-		if (data->port < 0) {
-			pr_err("%s: portid = %d invalid!\n", __func__, data->port);
-			return;
-		}
-		if (data->type >= TYPE_MAX) {
-			pr_err("%s: type = %d invalid!\n", __func__, data->type);
-			return;
-		}
-		if (atomic_read(&hans_deamon_port) == -1 && data->type != LOOP_BACK) {
-			pr_err("%s: handshake not setup, type = %d!\n", __func__, data->type);
+        if (data->port < 0) {
+            pr_err("%s: portid = %d invalid!\n", __func__, data->port);
+            return;
+        }
+        if (data->type >= TYPE_MAX) {
+            pr_err("%s: type = %d invalid!\n", __func__, data->type);
+            return;
+        }
+
+        if (atomic_read(&hans_deamon_port) == -1 && data->port > 0) {
+            atomic_set(&hans_deamon_port, data->port);
+            printk(KERN_INFO "HANS: Auto-fixed port to %d from type %d\n", data->port, data->type);
+        }
+
+        if (atomic_read(&hans_deamon_port) == -1 && data->type != LOOP_BACK) {
+            pr_err("%s: handshake not setup, type = %d!\n", __func__, data->type);
                         return;
-		}
+        }
 
         switch (data->type) {
         case LOOP_BACK:  /*Loop back message, only for native deamon and kernel handshake*/
-				atomic_set(&hans_deamon_port, data->port);
-				hans_report(LOOP_BACK, -1, -1, -1, -1, "loop back", CPUCTL_VERSION);
-				printk(KERN_ERR "%s: --> LOOP_BACK, port = %d\n", __func__, data->port);
-				hans_kern_support_cgrpv2();
-				break;
+                atomic_set(&hans_deamon_port, data->port);
+                hans_report(LOOP_BACK, -1, -1, -1, -1, "loop back", CPUCTL_VERSION);
+                printk(KERN_ERR "%s: --> LOOP_BACK, port = %d\n", __func__, data->port);
+                hans_kern_support_cgrpv2();
+                break;
         case PKG:
-				printk(KERN_ERR "%s: --> PKG, uid = %d, pkg_cmd = %d\n", __func__, data->target_uid, data->pkg_cmd);
-				hans_network_cmd_parse(data->target_uid, data->pkg_cmd);
-				break;
+                printk(KERN_ERR "%s: --> PKG, uid = %d, pkg_cmd = %d\n", __func__, data->target_uid, data->pkg_cmd);
+                hans_network_cmd_parse(data->target_uid, data->pkg_cmd);
+                break;
         case FROZEN_TRANS:
         case CPUCTL_TRANS:
-				if (CHECK_KERN_SUPPORT_CGRPV2 == data->target_uid) {
-				    hans_kern_support_cgrpv2();
-				} else {
-				    printk(KERN_ERR "%s: --> FROZEN_TRANS, uid = %d\n", __func__, data->target_uid);
-				    hans_check_frozen_transcation(data->target_uid, data->type);
-				}
-				break;
+                if (CHECK_KERN_SUPPORT_CGRPV2 == data->target_uid) {
+                    hans_kern_support_cgrpv2();
+                } else {
+                    printk(KERN_ERR "%s: --> FROZEN_TRANS, uid = %d\n", __func__, data->target_uid);
+                    hans_check_frozen_transcation(data->target_uid, data->type);
+                }
+                break;
 
         default:
-				pr_err("%s: hans_messag type invalid %d\n", __func__, data->type);
-				break;
-		}
-	}
+//              pr_err("%s: hans_messag type invalid %d\n", __func__, data->type);
+                break;
+        }
+    }
 }
-
 static int __init hans_core_init(void)
 {
 	struct netlink_kernel_cfg cfg = {
