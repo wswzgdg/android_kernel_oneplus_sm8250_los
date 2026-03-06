@@ -18,6 +18,10 @@
 #define ZRAM_HASH_SIZE_MIN	(1 << 10)
 #define ZRAM_HASH_SIZE_MAX	(1 << 31)
 
+#ifndef zram_dedup_enabled
+#define zram_dedup_enabled(zram) (false)
+#endif
+
 u64 zram_dedup_dup_size(struct zram *zram)
 {
 	return (u64)atomic64_read(&zram->stats.dup_data_size);

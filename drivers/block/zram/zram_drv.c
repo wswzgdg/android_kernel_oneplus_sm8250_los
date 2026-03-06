@@ -42,6 +42,10 @@
 
 #include "zram_dedup.h"
 
+#ifndef zram_dedup_enabled
+#define zram_dedup_enabled(zram) (false)
+#endif
+
 static DEFINE_IDR(zram_index_idr);
 /* idr index must be protected */
 static DEFINE_MUTEX(zram_index_mutex);
