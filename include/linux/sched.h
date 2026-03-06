@@ -1348,6 +1348,7 @@ struct task_struct {
 #ifdef CONFIG_PSI
 	/* Pressure stall state */
 	unsigned int			psi_flags;
+	unsigned int            pc_flags;
 #endif
 #ifdef CONFIG_TASK_XACCT
 	/* Accumulated RSS usage: */
