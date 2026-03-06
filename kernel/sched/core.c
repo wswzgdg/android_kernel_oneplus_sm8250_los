@@ -3426,7 +3426,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 
 void sched_post_fork(struct task_struct *p)
 {
-	uclamp_post_fork(p);
+//	uclamp_post_fork(p);
 }
 
 unsigned long to_ratio(u64 period, u64 runtime)
