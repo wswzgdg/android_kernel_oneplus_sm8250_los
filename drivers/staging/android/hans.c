@@ -179,6 +179,8 @@ static int __init hans_core_init(void)
 		.input = hans_handler,
 	};
 
+	printk(KERN_EMERG "HANS_DEBUG: ENTERING CORE INIT!!!\n");
+
 	atomic_set(&hans_deamon_port, -1);
 
         sock_handle = netlink_kernel_create(&init_net, NETLINK_OPLUS_HANS, &cfg);

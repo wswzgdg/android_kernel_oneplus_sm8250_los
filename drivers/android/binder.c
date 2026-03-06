@@ -5581,73 +5581,70 @@ static __poll_t binder_poll(struct file *filp,
 }
 
 static int binder_ioctl_write_read(struct file *filp,
-				unsigned int cmd, unsigned long arg,
-				struct binder_thread *thread)
+                unsigned int cmd, unsigned long arg,
+                struct binder_thread *thread)
 {
-	int ret = 0;
-	struct binder_proc *proc = filp->private_data;
-	unsigned int size = _IOC_SIZE(cmd);
-	void __user *ubuf = (void __user *)arg;
-	struct binder_write_read bwr;
+    int ret = 0;
+    struct binder_proc *proc = filp->private_data;
+    unsigned int size = _IOC_SIZE(cmd);
+    void __user *ubuf = (void __user *)arg;
+    struct binder_write_read bwr;
 
-	if (size != sizeof(struct binder_write_read)) {
-		ret = -EINVAL;
-		goto out;
-	}
-	if (copy_from_user(&bwr, ubuf, sizeof(bwr))) {
-		ret = -EFAULT;
-		goto out;
-	}
-	binder_debug(BINDER_DEBUG_READ_WRITE,
-		     "%d:%d write %lld at %016llx, read %lld at %016llx\n",
-		     proc->pid, thread->pid,
-		     (u64)bwr.write_size, (u64)bwr.write_buffer,
-		     (u64)bwr.read_size, (u64)bwr.read_buffer);
+    if (size != sizeof(struct binder_write_read)) {
+        return -EINVAL; 
+    }
 
-	if (bwr.write_size > 0) {
-		ret = binder_thread_write(proc, thread,
-					  bwr.write_buffer,
-					  bwr.write_size,
-					  &bwr.write_consumed);
-		trace_binder_write_done(ret);
-		if (ret < 0) {
-			bwr.read_consumed = 0;
-			if (copy_to_user(ubuf, &bwr, sizeof(bwr)))
-				ret = -EFAULT;
-			goto out;
-		}
-	}
-	if (bwr.read_size > 0) {
-		ret = binder_thread_read(proc, thread, bwr.read_buffer,
-					 bwr.read_size,
-					 &bwr.read_consumed,
-					 filp->f_flags & O_NONBLOCK);
-		trace_binder_read_done(ret);
-		binder_inner_proc_lock(proc);
-		if (!binder_worklist_empty_ilocked(&proc->todo))
-			binder_wakeup_proc_ilocked(proc);
+    if (copy_from_user(&bwr, ubuf, sizeof(bwr))) {
+        return -EFAULT;
+    }
+    binder_debug(BINDER_DEBUG_READ_WRITE,
+             "%d:%d write %lld at %016llx, read %lld at %016llx\n",
+             proc->pid, thread->pid,
+             (u64)bwr.write_size, (u64)bwr.write_buffer,
+             (u64)bwr.read_size, (u64)bwr.read_buffer);
+
+    if (bwr.write_size > 0) {
+        ret = binder_thread_write(proc, thread,
+                      bwr.write_buffer,
+                      bwr.write_size,
+                      &bwr.write_consumed);
+        trace_binder_write_done(ret);
+        if (ret < 0) {
+            bwr.read_consumed = 0;
+            if (copy_to_user(ubuf, &bwr, sizeof(bwr)))
+                ret = -EFAULT;
+            goto out;
+        }
+    }
+    if (bwr.read_size > 0) {
+        ret = binder_thread_read(proc, thread, bwr.read_buffer,
+                     bwr.read_size,
+                     &bwr.read_consumed,
+                     filp->f_flags & O_NONBLOCK);
+        trace_binder_read_done(ret);
+        binder_inner_proc_lock(proc);
+        if (!binder_worklist_empty_ilocked(&proc->todo))
+            binder_wakeup_proc_ilocked(proc);
+
 #ifdef CONFIG_OPLUS_BINDER_STRATEGY
-		if (obproc_has_work(proc))
-			obthread_wakeup(proc);
+        if (obproc_has_work(proc))
+            obthread_wakeup(proc);
 #endif
-		binder_inner_proc_unlock(proc);
-		if (ret < 0) {
-			if (copy_to_user(ubuf, &bwr, sizeof(bwr)))
-				ret = -EFAULT;
-			goto out;
-		}
-	}
-	binder_debug(BINDER_DEBUG_READ_WRITE,
-		     "%d:%d wrote %lld of %lld, read return %lld of %lld\n",
-		     proc->pid, thread->pid,
-		     (u64)bwr.write_consumed, (u64)bwr.write_size,
-		     (u64)bwr.read_consumed, (u64)bwr.read_size);
-	if (copy_to_user(ubuf, &bwr, sizeof(bwr))) {
-		ret = -EFAULT;
-		goto out;
-	}
+        binder_inner_proc_unlock(proc);
+        if (ret < 0) {
+            if (copy_to_user(ubuf, &bwr, sizeof(bwr)))
+                ret = -EFAULT;
+            goto out;
+        }
+    }
+
+    if (copy_to_user(ubuf, &bwr, sizeof(bwr))) {
+        ret = -EFAULT;
+        goto out;
+    }
+
 out:
-	return ret;
+    return ret;
 }
 
 static int binder_ioctl_set_ctx_mgr(struct file *filp,
@@ -5870,9 +5867,6 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	unsigned int size = _IOC_SIZE(cmd);
 	void __user *ubuf = (void __user *)arg;
 
-	/*pr_info("binder_ioctl: %d:%d %x %lx\n",
-			proc->pid, current->pid, cmd, arg);*/
-
 	binder_selftest_alloc(&proc->alloc);
 
 	trace_binder_ioctl(cmd, arg);
@@ -5889,9 +5883,14 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case BINDER_WRITE_READ:
+	case 0x40046210:
+	case _IOWR('b', 16, struct binder_write_read):
 		ret = binder_ioctl_write_read(filp, cmd, arg, thread);
 		if (ret)
 			goto err;
+		break;
+	case 120:
+		ret = 0;
 		break;
 	case BINDER_SET_MAX_THREADS: {
 		u32 max_threads;
@@ -5925,7 +5924,7 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 	case BINDER_THREAD_EXIT:
 		binder_debug(BINDER_DEBUG_THREADS, "%d:%d exit\n",
-			     proc->pid, thread->pid);
+				 proc->pid, thread->pid);
 		binder_thread_release(proc, thread);
 		thread = NULL;
 		break;
@@ -5937,7 +5936,7 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			goto err;
 		}
 		if (put_user(BINDER_CURRENT_PROTOCOL_VERSION,
-			     &ver->protocol_version)) {
+				 &ver->protocol_version)) {
 			ret = -EINVAL;
 			goto err;
 		}
@@ -6005,8 +6004,8 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 
 		target_procs = kmalloc(sizeof(struct binder_proc *) *
-					       target_procs_count,
-				       GFP_KERNEL);
+							   target_procs_count,
+						   GFP_KERNEL);
 
 		if (!target_procs) {
 			mutex_unlock(&binder_procs_lock);
@@ -6029,7 +6028,7 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		for (i = 0; i < target_procs_count; i++) {
 			if (ret >= 0)
 				ret = binder_ioctl_freeze(&info,
-							  target_procs[i]);
+											  target_procs[i]);
 
 			binder_proc_dec_tmpref(target_procs[i]);
 		}
@@ -6067,7 +6066,7 @@ err:
 	if (thread)
 		thread->looper_need_return = false;
 	wait_event_interruptible(binder_user_error_wait, binder_stop_on_user_error < 2);
-	if (ret && ret != -EINTR)
+	if (ret && ret != -EINTR && ret != -EINVAL)
 		pr_info("%d:%d ioctl %x %lx returned %d\n", proc->pid, current->pid, cmd, arg, ret);
 err_unlocked:
 	trace_binder_ioctl_done(ret);
