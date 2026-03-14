@@ -871,13 +871,49 @@ source "mm/damon/Kconfig"
 
 # multi-gen LRU {
 config LRU_GEN
-	bool "Multi-Gen LRU"
+	bool "Multi-Gen LRU Lite"
+	depends on MMU
+	# make sure page->flags has enough spare bits
+	depends on 64BIT || !SPARSEMEM || SPARSEMEM_VMEMMAP
+	help
+	  A lightweight, KMI-safe Multi-Gen LRU implementation for Android
+	  bring-up. It uses side-table based generation/tier feedback without
+	  changing KMI-visible core MM structs.
 
-config LRU_GEN_ENABLED
-	bool "Disable by default, Need switch by sysfs control"
+	  Compared with full upstream MGLRU, this lite variant focuses on
+	  conservative reclaim behavior and incremental validation.
+	  See Documentation/admin-guide/mm/multigen_lru.rst for details.
 
-config LRU_GEN_STATS
-	bool "Full stats for debugging"
+config LRU_GEN_DEBUG_LOG
+	bool "Debug log for MGLRU-lite"
+	depends on LRU_GEN
+	help
+	  Enable periodic kernel logs for the lightweight MGLRU bring-up path.
+	  Keep this disabled in normal use to avoid extra log noise.
+
+config LRU_GEN_LITE_ACCESS_CTRL
+	bool "Lite access-bit control"
+	depends on LRU_GEN
+	default y
+	help
+	  Enable lightweight access-bit control for MGLRU-lite. This samples
+	  pages in old generations, clears PG_referenced and promotes recently
+	  touched pages to younger generations.
+
+	  This is a conservative stepping stone before full page-table-walk
+	  based aging.
+
+config LRU_GEN_LITE_PTWALK
+	bool "Lite page-table walk sampling"
+	depends on LRU_GEN
+	default n
+	help
+	  Enable lightweight page-table walk sampling for MGLRU-lite.
+	  This performs bounded sampling via page_referenced() outside
+	  the lru_lock and records hot/total counters for validation.
+
+	  This is a diagnostic/bring-up step before integrating full
+	  page-table-walk aging into reclaim decisions.
 # }
 
 endmenu

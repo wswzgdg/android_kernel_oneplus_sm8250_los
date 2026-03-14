@@ -66,6 +66,47 @@
 
 #include "internal.h"
 
+#ifdef CONFIG_LRU_GEN
+bool lru_gen_enabled(void);
+struct list_head *lru_gen_get_scan_list(struct lruvec *lruvec, enum lru_list lru);
+void lru_gen_age_lruvec(struct lruvec *lruvec);
+void lru_gen_isolate_page(struct lruvec *lruvec, struct page *page, enum lru_list lru);
+void mglru_look_around(struct lruvec *lruvec, struct page *page, enum lru_list lru);
+bool mglru_tier_should_protect(struct lruvec *lruvec, struct page *page, enum lru_list lru,
+			       int priority, bool may_swap);
+#else
+static inline bool lru_gen_enabled(void)
+{
+	return false;
+}
+
+static inline struct list_head *lru_gen_get_scan_list(struct lruvec *lruvec,
+						       enum lru_list lru)
+{
+	return &lruvec->lists[lru];
+}
+
+static inline void lru_gen_age_lruvec(struct lruvec *lruvec)
+{
+}
+
+static inline void lru_gen_isolate_page(struct lruvec *lruvec, struct page *page,
+					enum lru_list lru)
+{
+}
+
+static inline void mglru_look_around(struct lruvec *lruvec, struct page *page,
+				     enum lru_list lru)
+{
+}
+
+static inline bool mglru_tier_should_protect(struct lruvec *lruvec, struct page *page,
+					     enum lru_list lru, int priority, bool may_swap)
+{
+	return false;
+}
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/vmscan.h>
 
@@ -1915,7 +1956,8 @@ static unsigned long isolate_lru_pages(unsigned long nr_to_scan,
 		unsigned long *nr_scanned, struct scan_control *sc,
 		isolate_mode_t mode, enum lru_list lru)
 {
-	struct list_head *src = &lruvec->lists[lru];
+	struct list_head *src = lru_gen_get_scan_list(lruvec, lru);
+	bool mglru_src = src != &lruvec->lists[lru];
 	unsigned long nr_taken = 0;
 	unsigned long nr_zone_taken[MAX_NR_ZONES] = { 0 };
 	unsigned long nr_skipped[MAX_NR_ZONES] = { 0, };
@@ -1947,8 +1989,18 @@ static unsigned long isolate_lru_pages(unsigned long nr_to_scan,
 		 * pages, triggering a premature OOM.
 		 */
 		scan++;
+		if (mglru_src)
+            mglru_look_around(lruvec, page, lru);
+
+        if (mglru_tier_should_protect(lruvec, page, lru, sc->priority, sc->may_swap)) {
+            list_move_tail(&page->lru, src);
+            continue;
+		}
+
 		switch (__isolate_lru_page(page, mode)) {
 		case 0:
+			if (mglru_src)
+                lru_gen_isolate_page(lruvec, page, lru);
 			nr_pages = hpage_nr_pages(page);
 			nr_taken += nr_pages;
 			nr_zone_taken[page_zonenum(page)] += nr_pages;
@@ -2314,11 +2366,10 @@ static unsigned move_active_pages_to_lru(struct lruvec *lruvec,
 
 		VM_BUG_ON_PAGE(PageLRU(page), page);
 		list_del(&page->lru);
-		SetPageLRU(page);
+
 		add_page_to_lru_list(page, lruvec);
-#ifdef CONFIG_MAPPED_PROTECT
-		add_mapped_mul_op_lrulist(page, lru);
-#endif
+
+		SetPageLRU(page);
 
 		if (put_page_testzero(page)) {
 			del_page_from_lru_list(page, lruvec);
@@ -2335,7 +2386,6 @@ static unsigned move_active_pages_to_lru(struct lruvec *lruvec,
 			nr_moved += hpage_nr_pages(page);
 		}
 	}
-
 	if (!is_active_lru(lru)) {
 		__count_vm_events(PGDEACTIVATE, nr_moved);
 		count_memcg_events(lruvec_memcg(lruvec), PGDEACTIVATE,
@@ -4740,6 +4790,10 @@ static void lru_gen_shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc
 	unsigned long reclaimed = sc->nr_reclaimed;
 	struct pglist_data *pgdat = lruvec_pgdat(lruvec);
 
+	#ifdef CONFIG_LRU_GEN
+	lru_gen_age_lruvec(lruvec);
+	#endif
+
 	lru_add_drain();
 
 	blk_start_plug(&plug);
@@ -5668,6 +5722,9 @@ static bool shrink_node(pg_data_t *pgdat, struct scan_control *sc)
 {
 	struct reclaim_state *reclaim_state = current->reclaim_state;
 	unsigned long nr_reclaimed, nr_scanned;
+#ifdef CONFIG_LRU_GEN
+//	struct lru_gen_mm_walk *mglru_mm_walk = NULL;
+#endif
 	bool reclaimable = false;
 #ifdef CONFIG_KSHRINK_SLABD
 	bool shrink_slab_async_sucess = false;

@@ -34,3 +34,4 @@ the Linux memory management.
    soft-dirty
    transhuge
    userfaultfd
+   multigen_lru
