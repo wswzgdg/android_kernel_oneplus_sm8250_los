@@ -1919,6 +1919,10 @@ static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 
 	blk_queue_split(q, &bio);
 
+	if (bio->bi_opf & REQ_SWAP) {
+        bio->bi_opf |= REQ_SYNC | REQ_PRIO | REQ_FUA;
+    }
+
 	if (!bio_integrity_prep(bio))
 		return BLK_QC_T_NONE;
 

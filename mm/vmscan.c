@@ -5501,6 +5501,8 @@ static void shrink_node_memcg(struct pglist_data *pgdat, struct mem_cgroup *memc
 
 				nr_reclaimed += shrink_list(lru, nr_to_scan,
 							    lruvec, sc);
+				if (unlikely(sc->priority < DEF_PRIORITY - 2))
+                    cond_resched();
 			}
 		}
 

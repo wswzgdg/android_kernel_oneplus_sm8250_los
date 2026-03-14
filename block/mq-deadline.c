@@ -422,11 +422,11 @@ static int dd_init_queue(struct request_queue *q, struct elevator_type *e)
 	INIT_LIST_HEAD(&dd->fifo_list[WRITE]);
 	dd->sort_list[READ] = RB_ROOT;
 	dd->sort_list[WRITE] = RB_ROOT;
-	dd->fifo_expire[READ] = read_expire;
-	dd->fifo_expire[WRITE] = write_expire;
-	dd->writes_starved = writes_starved;
+	dd->fifo_expire[READ] = HZ / 10;
+	dd->fifo_expire[WRITE] = HZ * 5;
+	dd->writes_starved = 16;
 	dd->front_merges = 1;
-	dd->fifo_batch = fifo_batch;
+	dd->fifo_batch = 2;
 	spin_lock_init(&dd->lock);
 	spin_lock_init(&dd->zone_lock);
 	INIT_LIST_HEAD(&dd->dispatch);
@@ -434,7 +434,6 @@ static int dd_init_queue(struct request_queue *q, struct elevator_type *e)
 	q->elevator = eq;
 	return 0;
 }
-
 static int dd_request_merge(struct request_queue *q, struct request **rq,
 			    struct bio *bio)
 {
