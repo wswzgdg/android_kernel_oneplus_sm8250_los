@@ -17,15 +17,12 @@
  * be incompatible with this kernel version.
  */
 #define EROFS_FEATURE_INCOMPAT_LZ4_0PADDING	0x00000001
-#define EROFS_FEATURE_INCOMPAT_LZ4_0PADDING	0x00000001
 #define EROFS_FEATURE_INCOMPAT_COMPR_CFGS	0x00000002
 #define EROFS_FEATURE_INCOMPAT_BIG_PCLUSTER	0x00000002
 #define EROFS_ALL_FEATURE_INCOMPAT		\
 	(EROFS_FEATURE_INCOMPAT_LZ4_0PADDING | \
 	 EROFS_FEATURE_INCOMPAT_COMPR_CFGS | \
 	 EROFS_FEATURE_INCOMPAT_BIG_PCLUSTER)
-
-#define EROFS_SB_EXTSLOT_SIZE	16
 
 #define EROFS_SB_EXTSLOT_SIZE	16
 
@@ -223,28 +220,14 @@ struct z_erofs_lz4_cfgs {
 	__le16 max_pclusterblks;
 	u8 reserved[10];
 } __packed;
-
-/* 14 bytes (+ length field = 16 bytes) */
-struct z_erofs_lz4_cfgs {
-	__le16 max_distance;
-	__le16 max_pclusterblks;
-	u8 reserved[10];
-} __packed;
-
 /*
  * bit 0 : COMPACTED_2B indexes (0 - off; 1 - on)
- *  e.g. for 4k logical cluster size,      4B        if compacted 2B is off;
- *                                  (4B) + 2B + (4B) if compacted 2B is on.
-* bit 1 : HEAD1 big pcluster (0 - off; 1 - on)
+ * bit 1 : HEAD1 big pcluster (0 - off; 1 - on)
  * bit 2 : HEAD2 big pcluster (0 - off; 1 - on)
  */
-#define Z_EROFS_ADVISE_COMPACTED_2B	0x0001
-#define Z_EROFS_ADVISE_BIG_PCLUSTER_1	0x0002
-#define Z_EROFS_ADVISE_BIG_PCLUSTER_2	0x0004
-
-#define Z_EROFS_ADVISE_COMPACTED_2B	(1 << Z_EROFS_ADVISE_COMPACTED_2B_BIT)
-#define Z_EROFS_ADVISE_BIG_PCLUSTER_1	(1 << Z_EROFS_ADVISE_BIG_PCLUSTER_1_BIT)
-#define Z_EROFS_ADVISE_BIG_PCLUSTER_2	(1 << Z_EROFS_ADVISE_BIG_PCLUSTER_2_BIT)
+#define Z_EROFS_ADVISE_COMPACTED_2B     0x0001
+#define Z_EROFS_ADVISE_BIG_PCLUSTER_1   0x0002
+#define Z_EROFS_ADVISE_BIG_PCLUSTER_2   0x0004
 struct z_erofs_map_header {
 	__le32	h_reserved1;
 	__le16	h_advise;

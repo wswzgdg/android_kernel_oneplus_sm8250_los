@@ -21,39 +21,35 @@ struct erofs_map_blocks;
 #define show_map_flags(flags) __print_flags(flags, "|",	\
 	{ EROFS_GET_BLOCKS_RAW,	"RAW" })
 
-#define show_mflags(flags) __print_flags(flags, "",	\
-	{ EROFS_MAP_MAPPED,	"M" },			\
-	{ EROFS_MAP_META,	"I" },			\
-	{ EROFS_MAP_ZIPPED,	"Z" })
+#define show_mflags(flags) __print_flags(flags, "", \
+    { EROFS_MAP_MAPPED, "M" },          \
+    { EROFS_MAP_META,   "I" },          \
+    { EROFS_MAP_ZIPPED, "Z" })
 
 TRACE_EVENT(erofs_lookup,
 
-	TP_PROTO(struct inode *dir, struct dentry *dentry, unsigned int flags),
+    TP_PROTO(struct inode *dir, struct dentry *dentry, unsigned int flags),
 
-	TP_ARGS(dir, dentry, flags),
+    TP_ARGS(dir, dentry, flags),
 
-	TP_STRUCT__entry(
-		__field(dev_t,		dev	)
-		__field(erofs_nid_t,	nid	)
-TP_STRUCT__entry(
-		__field(dev_t,		dev	)
-		__field(erofs_nid_t,	nid	)
-		__string(name,		dentry->d_name.name	)
-		__field(unsigned int,	flags	)
-	),
+    TP_STRUCT__entry(
+        __field(dev_t,      dev )
+        __field(erofs_nid_t,    nid )
+        __string(name,      dentry->d_name.name )
+        __field(unsigned int,   flags   )
+    ),
 
-	TP_fast_assign(
-		__entry->dev	= dir->i_sb->s_dev;
-		__entry->nid	= EROFS_I(dir)->nid;
-		__assign_str(name, dentry->d_name.name);
-		__entry->flags	= flags;
-	),
+    TP_fast_assign(
+        __entry->dev    = dir->i_sb->s_dev;
+        __entry->nid    = EROFS_I(dir)->nid;
+        __assign_str(name, dentry->d_name.name);
+        __entry->flags  = flags;
+    ),
 
-	TP_printk("dev = (%d,%d), pnid = %llu, name:%s, flags:%x",
-		show_dev_nid(__entry),
-		__get_str(name),
-		__entry->flags)
-		__entry->flags)
+    TP_printk("dev = (%d,%d), pnid = %llu, name:%s, flags:%x",
+        show_dev_nid(__entry),
+        __get_str(name),
+        __entry->flags)
 );
 
 TRACE_EVENT(erofs_fill_inode,
