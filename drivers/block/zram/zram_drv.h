@@ -74,6 +74,7 @@ enum zram_pageflags {
 #define ZRAM_WB_IDLE_MAX (10U)
 
 #define ZRAM_WB_IDLE_DEFAULT ZRAM_WB_IDLE_MIN
+#define ZRAM_WB_IDLE_MASK (((1U << ZRAM_WB_IDLE_BITS_LEN) - 1) << ZRAM_WB_IDLE_SHIFT)
 
 /*-- Data structures */
 
@@ -202,6 +203,33 @@ struct zram {
 	atomic64_t avg_size;
 #endif
 };
+
+static inline unsigned int zram_get_idle_count(struct zram *zram, u32 index)
+{
+	return (zram->table[index].flags & ZRAM_WB_IDLE_MASK) >> ZRAM_WB_IDLE_SHIFT;
+}
+
+static inline void zram_set_idle_count(struct zram *zram, u32 index, unsigned int count)
+{
+	unsigned long flags = zram->table[index].flags;
+
+	flags &= ~ZRAM_WB_IDLE_MASK;
+	flags |= ((count & ((1U << ZRAM_WB_IDLE_BITS_LEN) - 1)) << ZRAM_WB_IDLE_SHIFT);
+	zram->table[index].flags = flags;
+}
+
+static inline void zram_inc_idle_count(struct zram *zram, u32 index)
+{
+	unsigned int count = zram_get_idle_count(zram, index);
+
+	if (count < ZRAM_WB_IDLE_MAX)
+		zram_set_idle_count(zram, index, count + 1);
+}
+
+static inline void zram_clear_idle_count(struct zram *zram, u32 index)
+{
+	zram_set_idle_count(zram, index, 0);
+}
 
 static inline bool zram_dedup_enabled(struct zram *zram)
 {

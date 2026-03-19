@@ -33,7 +33,6 @@
 #include <linux/sysfs.h>
 #include <linux/debugfs.h>
 #include <linux/cpuhotplug.h>
-#include <linux/part_stat.h>
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
 #include <linux/vmstat.h>
@@ -58,6 +57,7 @@ static unsigned int num_devices = 1;
  * uncompressed in memory.
  */
 static size_t huge_class_size;
+static unsigned int low_compress_ratio;
 
 static void zram_free_page(struct zram *zram, size_t index);
 static int zram_bvec_read(struct zram *zram, struct bio_vec *bvec,
@@ -359,9 +359,8 @@ static ssize_t get_idle_or_new_pages(struct zram *zram,
 	}
 
 	for (i = min_idle_count; i <= max_idle_count; i++)
-		off += scnprintf(buf + off, PAGE_SIZE - off, %lu , pages_nr[i]);
-	buf[off - 1] = '
-';
+		off += scnprintf(buf + off, PAGE_SIZE - off, "%lu ", pages_nr[i]);
+	buf[off - 1] = '\n';
 	ret = off;
 
 out:
@@ -394,7 +393,7 @@ static ssize_t low_compress_ratio_store(struct device *dev,
 
 	down_read(&zram->init_lock);
 	spin_lock(&zram->wb_limit_lock);
-	glow_compress_ratio = val;
+	low_compress_ratio = val;
 	spin_unlock(&zram->wb_limit_lock);
 	up_read(&zram->init_lock);
 	ret = len;
@@ -405,7 +404,7 @@ static ssize_t low_compress_ratio_store(struct device *dev,
 static ssize_t low_compress_ratio_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return scnprintf(buf, PAGE_SIZE, "%u\n", glow_compress_ratio);
+	return scnprintf(buf, PAGE_SIZE, "%u\n", low_compress_ratio);
 }
 
 static ssize_t writeback_limit_enable_store(struct device *dev,
@@ -2231,7 +2230,7 @@ out:
 		zram_set_entry(zram, index, entry);
 		zram_set_obj_size(zram, index, comp_len);
 
-		if ((100 * (PAGE_SIZE - comp_len)/PAGE_SIZE) < glow_compress_ratio) {
+		if ((100 * (PAGE_SIZE - comp_len)/PAGE_SIZE) < low_compress_ratio) {
 			zram_set_flag(zram, index, ZRAM_COMPRESS_LOW);
 			atomic64_inc(&zram->stats.lowratio_pages);
 		}
